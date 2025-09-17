@@ -42,7 +42,7 @@ extern double PjumpOptimum;
 
 int GetOptions(char *ctlf);
 int ReadTreeSeqs(FILE*fout);
-int ProcessNodeAnnotation(int* haslabel);
+int ProcessNodeAnnotation();
 int ReadBlengthGH(char infile[]);
 int GenerateBlengthGH(char infile[]);
 int GetMem(void);
@@ -86,6 +86,9 @@ int mixingCladeStretch(double *lnL, double steplength, char *accept);
 int UpdatePFossilErrors(double steplength, char *accept);
 int getPfossilerr(double postEFossil[], double nround);
 int DescriptiveStatisticsSimpleMCMCTREE(FILE *fout, char infile[]);
+
+//SW
+double rand_normal(double mean, double variance);
 
 struct CommonInfo {
    char *z[NS], *spname[NS];
@@ -174,6 +177,7 @@ struct DATA { /* locus-specific data and tree information */
    double pfossilerror[3], /* (p_beta, q_beta, NminCorrect) */ Pfossilerr, *CcomFossilErr;
    int    rgeneprior;         /* 0: gamma-Dirichlet; 1: conditional iid */
    double rgene[NGENE + 1], sigma2[NGENE + 1], rgenepara[3], sigma2para[3];
+   double drift[NGENE + 1], driftpara[3]; //SW
    double *blMLE[NGENE], *Gradient[NGENE], *Hessian[NGENE];
    int    transform;
 }  data;
@@ -477,8 +481,10 @@ int SaveMCMCstate(char *filename, int ir, double lnpR, double lnL)
    }
    
    fwrite(data.rgene, g1*sizeof(double), 1, f);
-   if (com.clock > 1)
+   if (com.clock > 1){
       fwrite(data.sigma2, g1*sizeof(double), 1, f);
+      fwrite(data.drift, g1*sizeof(double), 1, f);//SW
+   }
    if (mcmc.usedata == 1 && !com.fix_kappa)
       fwrite(data.kappa, g*sizeof(double), 1, f);
    if (mcmc.usedata == 1 && !com.fix_alpha)
@@ -1144,13 +1150,15 @@ int GenerateBlengthGH(char infile[])
 int GetOptions(char *ctlf)
 {
    int  transform0 = ARCSIN_B; /* default transform: SQRT_B, LOG_B, ARCSIN_B */
-   int  iopt, i, j, nopt = 32, lline = 4096;
+   int  iopt, i, j, nopt = 33, lline = 4096; //SW from 32 to 33
    char line[4096], *pline, opt[33], *comment = "*#", ch;
    char *optstr[] = { "seed", "seqfile","treefile", "outfile", "mcmcfile", "checkpoint", "BayesFactorBeta",
         "seqtype", "aaRatefile", "icode", "noisy", "usedata", "ndata", "duplication", "model", "clock",
         "TipDate", "RootAge", "fossilerror", "alpha", "ncatG", "cleandata",
         "BDparas", "kappa_gamma", "alpha_gamma", "rgene_gamma", "sigma2_gamma", 
-        "print", "burnin", "sampfreq", "nsample", "finetune" };
+        "print", "burnin", "sampfreq", "nsample", "finetune",
+	"drift_lnorm"
+ };
    double t = 1, *eps = mcmc.steplength;
    FILE  *fctl = zopen(ctlf, "r");
 
@@ -1176,7 +1184,8 @@ int GetOptions(char *ctlf)
          sscanf(pline + 1, "%lf", &t);
 
          for (iopt = 0; iopt < nopt; iopt++) {
-            if (strncmp(opt, optstr[iopt], 8) == 0) {
+            //if (strncmp(opt, optstr[iopt], 18) == 0) {
+		if (strcmp(opt, optstr[iopt]) == 0){ //SW
                if (noisy >= 9)
                   printf("\n%3d %15s | %-20s %6.2f", iopt + 1, optstr[iopt], opt, t);
                switch (iopt) {
@@ -1235,14 +1244,14 @@ int GetOptions(char *ctlf)
                case (20): com.ncatG = (int)t;      break;
                case (21): com.cleandata = (int)t;  break;
                case (22):
-                  data.BDS[3] = -1;  /* there may be either 3 or 4 parameters in the BDS model. */
-                  sscanf(pline + 1, "%lf%lf%lf%lf %c", &data.BDS[0], &data.BDS[1], &data.BDS[2], &data.BDS[3], &ch);
-                  if (data.BDS[3] <= 0)
+                  ch = -1;  /* there may be either 3 or 4 parameters in the BDS model. */
+                  sscanf(pline + 1, "%lf%lf%lf%lf%c", &data.BDS[0], &data.BDS[1], &data.BDS[2], &data.BDS[3], &ch);
+                  if (ch == -1)
                      sscanf(pline + 1, "%lf%lf%lf %c", &data.BDS[0], &data.BDS[1], &data.BDS[2], &ch);
                   ch = toupper(ch);
                   if (ch == 'C')       data.BDS_flag = 0;
                   else if (ch == 'M')  data.BDS_flag = 1;
-                  else                 zerror("BDparas: expect flag for birth-death process prior: C for conditional, M for multiplicative");
+                  else                 zerror("Flag for birth-death process prior expected: C for conditional, M for multiplicative");
                   break;                 
                case (23):
                   sscanf(pline + 1, "%lf%lf", data.kappagamma, data.kappagamma + 1); break;
@@ -1265,6 +1274,10 @@ int GetOptions(char *ctlf)
                   puts("finetune is deprecated now.");
                   break;
                   sscanf(pline + 1, "%d:%lf%lf%lf%lf%lf%lf", &j, eps, eps + 1, eps + 2, eps + 3, eps + 4, eps + 5);
+                  break;
+               case (32):
+                  sscanf(pline + 1, "%lf%lf%lf", data.driftpara, data.driftpara + 1, data.driftpara + 2);
+                  if (data.driftpara[2] <= 0) data.driftpara[2] = 1;
                   break;
                }
                break;
@@ -1297,7 +1310,7 @@ int GetOptions(char *ctlf)
       com.ncode = 20;
 
    if (com.alpha == 0) { com.fix_alpha = 1; com.nalpha = 0; }
-   if (com.clock < 1 || com.clock>3) zerror("clock should be 1, 2, 3?");
+   if (com.clock < 1 || com.clock > 999) zerror("clock should be 1, 2, 3?");
    if (mcmc.burnin <= 0) puts("burnin=0: no automatic step adjustment?");
 
    if (BFbeta && mcmc.usedata == 0)
@@ -1987,11 +2000,15 @@ int GetInitials(void)
 
    if (com.clock > 1) {               /* sigma2, rates for nodes or branches */
       np += g1;
+      np += g1;//SW
       if (mcmc.print >= 2) np += g*(stree.nnode - 1);
 
       /* sigma2 in lnrates among loci */
-      for (i = 0; i < g1; i++)
+      for (i = 0; i < g1; i++){
          data.sigma2[i] = smallr + rndgamma(data.sigma2para[0]) / data.sigma2para[1];
+         //data.drift[i] = smallr + (0) + 0.1 * rand() / (RAND_MAX + 1.0);//SW use Unif
+         data.drift[i] = exp(rand_normal(data.driftpara[0], data.driftpara[1])); //SW
+      }
       /* rates at nodes */
       for (j = 0; j < stree.nnode; j++) {
          if (j == stree.root) {
@@ -2064,6 +2081,15 @@ int collectx(FILE* fout, double x[])
          }
          x[np++] = data.sigma2[i];
       }
+	//SW
+	for (i = 0; i < g1; i++) {
+	   if (firsttime && fout) {
+	      if (i == g)      fprintf(fout, "\tdrift_bar");
+	      else if (g > 1)  fprintf(fout, "\tdrift_%d", i + 1);
+	      else             fprintf(fout, "\tdrift");
+	   }
+	   x[np++] = data.drift[i];
+	}
       if (mcmc.print >= 2)
          for (i = 0; i < g; i++) {
             for (j = 0; j < stree.nnode; j++) {
@@ -3139,7 +3165,7 @@ int UpdateTimes(double *lnL, double steplength[], char accept[])
       lnacceptance = ynew - y;
       lnpTnew = lnpriorTimes();
       lnacceptance += lnpTnew - data.lnpT;
-      if (com.clock == 3) {
+      if (com.clock >= 3) { //SW
          lnpRnew = lnpriorRates();
          lnacceptance += lnpRnew - data.lnpR;
       }
@@ -3164,7 +3190,7 @@ int UpdateTimes(double *lnL, double steplength[], char accept[])
       if (lnacceptance >= 0 || rndu() < exp(lnacceptance)) {
          accept[is - stree.nspecies] = (char)1;
          data.lnpT = lnpTnew;
-         if (com.clock == 3) data.lnpR = lnpRnew;
+         if (com.clock >= 3) data.lnpR = lnpRnew;//SW
          for (locus = 0; locus < data.ngene; locus++)
             data.lnpDi[locus] = lnpDinew[locus];
          *lnL += lnLd;
@@ -3279,32 +3305,35 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
       it changes the rate prior but not the likelihood.
    */
    int g = data.ngene, g1 = g + (data.rgeneprior == 1);
-   int locus, ip, np = 1 + (com.clock > 1), j;
-   char *parastr[2] = { "mu", "sigma2" };
+   //int locus, ip, np = 1 + (com.clock > 1), j;
+   int locus, ip, np = 2 + (com.clock > 1), j;//SW, increase np from "1+" to "2+" for drift
+   char *parastr[3] = { "mu", "sigma2", "drift" };
    double lnacceptance, lnpDinew = -1e99, lnpRnew = 0, lnLd = 0;
    double yb[2] = { -99,99 }, y, ynew, pold, pnew, sumold, sumnew, e;
    double *para, *gD, a, b, bold, bnew;   /* gamma-Dirichlet */
 
    if (debug == 5) puts("\nUpdateParaRates (rgene & sigma2)");
    if (mcmc.saveconP)
-      for (j = 0; j < stree.nspecies * 2 - 1; j++)
-         com.oldconP[j] = 0;
+   for (j = 0; j < stree.nspecies * 2 - 1; j++)
+      com.oldconP[j] = 0;
    for (ip = 0; ip < np; ip++) {  /* mu (rgene) and sigma2 for each locus and for overall */
       if (ip == 0) { para = data.rgene;  gD = data.rgenepara; } /* rgene (mu) */
-      else         { para = data.sigma2; gD = data.sigma2para; } /* sigma2 */
+      else if (ip == 1)        { para = data.sigma2; gD = data.sigma2para; } /* sigma2 */
+      else if (ip == 2)        { para = data.drift; gD = data.driftpara; } /* drift, SW */
 
+	//SW
       for (locus = 0; locus < g1; locus++) {
          e = steplength[ip*g1 + locus];
          if (e <= 0) zerror("steplength = 0 in UpdateParaRates");
-
          for (j = 0, sumold = 0; j < g; j++) sumold += para[j];
-         pold = para[locus];
-         y = log(pold);
-         ynew = y + e*rndSymmetrical();
-         ynew = reflect(ynew, yb[0], yb[1]);
-         para[locus] = pnew = exp(ynew);
-         sumnew = sumold + pnew - pold;
+	 pold = para[locus];
+	 y = log(pold);
+	 ynew = y + e*rndSymmetrical();
+	 ynew = reflect(ynew, yb[0], yb[1]);
+	 para[locus] = pnew = exp(ynew);
+         sumnew = sumold + pnew - pold; //Sum of mu_i
          lnacceptance = ynew - y;
+	 //printf("999\t%f\t%f\t%f\n", pold, ynew, y);
 
          if (ip == 0 && com.clock == 1 && locus < g) { /* rgene (mu) */
             UseLocus(locus, 1, mcmc.usedata, 0);
@@ -3314,7 +3343,14 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
          }
 
          if (data.rgeneprior == 0)  /* gamma-dirichlet prior (dos reis et al. 2014, eq 5) */
-            lnacceptance += (gD[0] - gD[2] * g)*log(sumnew / sumold) - gD[1] / g*(sumnew - sumold) + (gD[2] - 1)*(ynew - y);
+		if(ip == 2){
+			//lnacceptance += -(sumnew*sumnew - sumold*sumold) / (2*(gD[0]/pow(gD[1],2)));
+			lnacceptance += g*gD[2]*log(sumnew/sumold) 
+					+ (gD[2]-1)*(ynew-y) 
+					- (pow(sumnew-log(g),2)-pow(sumold-log(g),2))/(2*(gD[1]));
+		} else{
+		    lnacceptance += (gD[0] - gD[2] * g)*log(sumnew / sumold) - gD[1] / g*(sumnew - sumold) + (gD[2] - 1)*(ynew - y);
+		}
          else {                     /* conditional iid prior (Zhu et al. 2015 SB, p.279 eq. 8) */
             if (locus < g) {          /* mu_i & sigma2_i */
                a = gD[2];  b = gD[2] / para[g];
@@ -3413,7 +3449,7 @@ double lnpriorRates(void)
    double zz, r = -1, rA, r1, r2, y1, y2;
    double a, b;
 
-   if (com.clock == 3 && data.priorrate == 1)
+   if (com.clock >= 3 && data.priorrate == 1)
       zerror("gamma prior for rates for clock3 not implemented yet.");
    else if (com.clock == 2 && data.priorrate == 1) {   /* clock2, gamma rate prior */
       lnpR = 0;
@@ -3440,7 +3476,7 @@ double lnpriorRates(void)
          }
       }
    }
-   else if (com.clock == 3 && data.priorrate == 0) {  /* clock3, LN rate prior */
+   else if ( (com.clock==3 || com.clock==31 || com.clock==32) && data.priorrate == 0) {  /* clock3, LN rate prior */
       for (inode = 0; inode < stree.nnode; inode++) {
          if (stree.nodes[inode].nson == 0) continue; /* skip the tips */
          dad = stree.nodes[inode].father;
@@ -3455,11 +3491,20 @@ double lnpriorRates(void)
          Tinv[1] = Tinv[2] = -tA / detT;
          Tinv[3] = (tA + t1) / detT;
          for (locus = 0; locus < g; locus++) {
+		//SW
+		switch (com.clock) {
+			case 3: data.drift[locus] = 1; break;
+			case 31: data.drift[locus] = exp(data.sigma2[locus]/2); break;
+			default: break;
+		}
+		//printf("%f\n", data.drift[locus]);
             rA = (inode == stree.root ? data.rgene[locus] : stree.nodes[inode].rates[locus]);
             r1 = stree.nodes[sons[0]].rates[locus];
             r2 = stree.nodes[sons[1]].rates[locus];
-            y1 = log(r1 / rA) + (tA + t1)*data.sigma2[locus] / 2;
-            y2 = log(r2 / rA) + (tA + t2)*data.sigma2[locus] / 2;
+            //y1 = log(r1 / rA) + (tA + t1)*( data.sigma2[locus]/2 - data.drift[locus] );
+            //y2 = log(r2 / rA) + (tA + t2)*( data.sigma2[locus]/2 - data.drift[locus] );
+            y1 = log(r1 / rA) + (tA + t1)*( data.sigma2[locus]/2 - log(data.drift[locus]) );
+            y2 = log(r2 / rA) + (tA + t2)*( data.sigma2[locus]/2 - log(data.drift[locus]) );
             zz = (y1*y1*Tinv[0] + 2 * y1*y2*Tinv[1] + y2*y2*Tinv[3]);
             lnpR -= zz / (2 * data.sigma2[locus]) + log(detT*square(data.sigma2[locus])) / 2 + log(r1*r2);
          }
@@ -4330,4 +4375,12 @@ int MCMC(FILE* fout)
       printf("%s transform is used in approx like calculation.\n", Btransform[data.transform]);
    printf("\nTime used: %s\n", printtime(timestr));
    return(0);
+}
+
+
+double rand_normal(double mean, double variance) {
+    double u1 = rand() / (double)RAND_MAX; // Uniform [0,1)
+    double u2 = rand() / (double)RAND_MAX; // Uniform [0,1)
+    double z = sqrt(-2.0 * log(u1)) * cos(2.0 * M_PI * u2); // N(0,1)
+    return mean + z * sqrt(variance); // N(x, y)
 }
