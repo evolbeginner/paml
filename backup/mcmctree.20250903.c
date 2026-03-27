@@ -1,9 +1,10 @@
+/* SW 20250903: GBM worked! */
+
 /* mcmctree.c
 
    Markov chain Monte Carlo on trees (Bayesian phylogenetic analysis)
 
                    Ziheng YANG, since December 2002
-	Sishuo Wang (SW) modified since 2025/10 to allow for more clock models
 
    cc -o mcmctree -O3 mcmctree.c tools.c -lm
    cc -o infinitesites -DINFINITESITES -O3 mcmctree.c tools.c -lm
@@ -43,7 +44,7 @@ extern double PjumpOptimum;
 
 int GetOptions(char *ctlf);
 int ReadTreeSeqs(FILE*fout);
-int ProcessNodeAnnotation(int* haslabel);
+int ProcessNodeAnnotation();
 int ReadBlengthGH(char infile[]);
 int GenerateBlengthGH(char infile[]);
 int GetMem(void);
@@ -87,9 +88,6 @@ int mixingCladeStretch(double *lnL, double steplength, char *accept);
 int UpdatePFossilErrors(double steplength, char *accept);
 int getPfossilerr(double postEFossil[], double nround);
 int DescriptiveStatisticsSimpleMCMCTREE(FILE *fout, char infile[]);
-
-//SW
-double rand_normal(double mean, double variance);
 
 struct CommonInfo {
    char *z[NS], *spname[NS];
@@ -1158,7 +1156,7 @@ int GetOptions(char *ctlf)
         "TipDate", "RootAge", "fossilerror", "alpha", "ncatG", "cleandata",
         "BDparas", "kappa_gamma", "alpha_gamma", "rgene_gamma", "sigma2_gamma", 
         "print", "burnin", "sampfreq", "nsample", "finetune",
-	"drift_lnorm"
+	"drift_gamma"
  };
    double t = 1, *eps = mcmc.steplength;
    FILE  *fctl = zopen(ctlf, "r");
@@ -1245,14 +1243,14 @@ int GetOptions(char *ctlf)
                case (20): com.ncatG = (int)t;      break;
                case (21): com.cleandata = (int)t;  break;
                case (22):
-                  data.BDS[3] = -1;  /* there may be either 3 or 4 parameters in the BDS model. */
-                  sscanf(pline + 1, "%lf%lf%lf%lf %c", &data.BDS[0], &data.BDS[1], &data.BDS[2], &data.BDS[3], &ch);
-                  if (data.BDS[3] <= 0)
+                  ch = -1;  /* there may be either 3 or 4 parameters in the BDS model. */
+                  sscanf(pline + 1, "%lf%lf%lf%lf%c", &data.BDS[0], &data.BDS[1], &data.BDS[2], &data.BDS[3], &ch);
+                  if (ch == -1)
                      sscanf(pline + 1, "%lf%lf%lf %c", &data.BDS[0], &data.BDS[1], &data.BDS[2], &ch);
                   ch = toupper(ch);
                   if (ch == 'C')       data.BDS_flag = 0;
                   else if (ch == 'M')  data.BDS_flag = 1;
-                  else                 zerror("BDparas: expect flag for birth-death process prior: C for conditional, M for multiplicative");
+                  else                 zerror("Flag for birth-death process prior expected: C for conditional, M for multiplicative");
                   break;                 
                case (23):
                   sscanf(pline + 1, "%lf%lf", data.kappagamma, data.kappagamma + 1); break;
@@ -2007,8 +2005,8 @@ int GetInitials(void)
       /* sigma2 in lnrates among loci */
       for (i = 0; i < g1; i++){
          data.sigma2[i] = smallr + rndgamma(data.sigma2para[0]) / data.sigma2para[1];
-         //data.drift[i] = smallr + (0) + 0.1 * rand() / (RAND_MAX + 1.0);//SW use Unif
-         data.drift[i] = exp(rand_normal(data.driftpara[0], data.driftpara[1])); //SW
+         //data.drift[i] = smallr + rndgamma(data.sigma2para[0]) / data.sigma2para[1];//SW use the same hyperparam as sigma2
+         data.drift[i] = smallr + (0) + 0.1 * rand() / (RAND_MAX + 1.0);//SW use Unif
       }
       /* rates at nodes */
       for (j = 0; j < stree.nnode; j++) {
@@ -3477,8 +3475,7 @@ double lnpriorRates(void)
          }
       }
    }
-	//SW
-   else if ( (com.clock == 3 || com.clock == 31 || com.clock == 32) && data.priorrate == 0) {  /* clock3, LN rate prior */
+   else if ( (com.clock==3 || com.clock==31 || com.clock==32) && data.priorrate == 0) {  /* clock3, LN rate prior */
       for (inode = 0; inode < stree.nnode; inode++) {
          if (stree.nodes[inode].nson == 0) continue; /* skip the tips */
          dad = stree.nodes[inode].father;
@@ -3497,9 +3494,9 @@ double lnpriorRates(void)
 		switch (com.clock) {
 			case 3: data.drift[locus] = 1; break;
 			case 31: data.drift[locus] = exp(data.sigma2[locus]/2); break;
+			//case 32: data.drift[locus] = 2.0; break;
 			default: break;
 		}
-		//printf("%f\n", data.drift[locus]);
             rA = (inode == stree.root ? data.rgene[locus] : stree.nodes[inode].rates[locus]);
             r1 = stree.nodes[sons[0]].rates[locus];
             r2 = stree.nodes[sons[1]].rates[locus];
@@ -4377,12 +4374,4 @@ int MCMC(FILE* fout)
       printf("%s transform is used in approx like calculation.\n", Btransform[data.transform]);
    printf("\nTime used: %s\n", printtime(timestr));
    return(0);
-}
-
-
-double rand_normal(double mean, double variance) {
-    double u1 = rand() / (double)RAND_MAX; // Uniform [0,1)
-    double u2 = rand() / (double)RAND_MAX; // Uniform [0,1)
-    double z = sqrt(-2.0 * log(u1)) * cos(2.0 * M_PI * u2); // N(0,1)
-    return mean + z * sqrt(variance); // N(x, y)
 }

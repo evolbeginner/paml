@@ -5,6 +5,11 @@
 Before running any of the programs included in the `PAML` software, please go through the different sections of this Wiki, where a detailed explanation of how to install and run the programs is given. One of the main problems users face is related to **data formatting**. In that way, please make sure that you go through the **section [`Data formatting` in the PAML Wiki](https://github.com/abacus-gene/paml/wiki/Data-formatting)** before running any `PAML` program and format your input data files and control files accordingly.
 
 > [!IMPORTANT]
+> Some changes to `mcmctree.c` by Sishuo Wang to enable alternative clock models.
+> To complie, try `make -f Makefile-mcmctree`.
+>
+
+> [!IMPORTANT]
 >
 > * Problems with input data, control files, error/warning messages output by the `PAML` programs (which inform users about formatting issues in their input files or wrong settings in their control files), and general questions should be posted in the **[`PAML` discussion group](https://groups.google.com/g/pamlsoftware?pli=1)**. **Before posting a message, please [use the search tool in the `PAML` discussion group](https://groups.google.com/g/pamlsoftware) to check whether your question/s have already been asked by other `PAML` users. You should also refer to [the FAQs document](https://github.com/abacus-gene/paml/blob/master/doc/pamlFAQs.pdf)**. If you still cannot find an answer to your question/s, please post them in the [**`PAML` discussion group**](https://groups.google.com/g/pamlsoftware).
 > * Please, **do not** paste the screen output and the error/warning that you get without any reference when you are requesting help. Instead, make sure that you attach the input data and the control files you are using, explain how you ran `PAML`, which `PAML` version you are using, etc. In that way, your issue will be **much easier and faster to troubleshoot**. You can find more information about **how to report your warning/error message [on this website](https://uxwritinghub.com/error-message-examples/)**.
@@ -104,3 +109,4 @@ In the meantime, you can access the following sections, which are also detailed 
 ## Additional information
 
 Changes and bug fixes until v4.10.1 were documented in the file [doc/pamlHistory.txt](https://github.com/abacus-gene/paml/blob/master/doc/pamlHistory.txt). Changes in later versions have been documented for each release in [the `releases` section of this GitHub repository](https://github.com/abacus-gene/paml/releases).
+

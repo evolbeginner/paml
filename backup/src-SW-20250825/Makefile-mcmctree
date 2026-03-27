@@ -1,0 +1,25 @@
+# Makefile-mcmctree — build only mcmctree (customizable)
+BIN     = mcmctree
+CC      = gcc
+CFLAGS  = -O3 -Wall -Wno-unused-variable -Wno-unused-result
+CPPFLAGS=
+LDFLAGS =
+LIBS    = -lm
+
+all: $(BIN)
+
+$(BIN): mcmctree.o tools.o paml.h treesub.c treespace.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ mcmctree.o tools.o $(LIBS)
+
+mcmctree.o: paml.h mcmctree.c treesub.c treespace.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -c mcmctree.c
+
+tools.o: paml.h tools.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -c tools.c
+
+.PHONY: clean distclean
+clean:
+	-rm -f *.o
+
+distclean: clean
+	-rm -f $(BIN)

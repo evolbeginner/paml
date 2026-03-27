@@ -1,0 +1,65 @@
+MCMCTREE (paml version 4.10.9, 7 May 2025) combined.phy
+
+
+*** Locus 1 ***
+      4     10
+
+a                               AAAAAAAAAA 
+b                               ACAGAAAAAA 
+c                               ACTTTTTTTT 
+d                               ---TTTTATT 
+
+
+
+Printing out site pattern counts
+
+
+         4          6  P
+
+a                               AAAAAA
+b                               AAAACG
+c                               ATTTCT
+d                               --AT-T
+
+
+
+    1    1    1    5    1    1
+
+
+Frequencies..
+                                    T      C      A      G
+a                              0.00000 0.00000 1.00000 0.00000 GC = 0.000
+b                              0.00000 0.10000 0.80000 0.10000 GC = 0.200
+c                              0.80000 0.10000 0.10000 0.00000 GC = 0.100
+d                              0.85714 0.00000 0.14286 0.00000 GC = 0.000
+
+Homogeneity statistic: X2 = 3.38896 G = 4.22563 
+
+Average                        0.37838 0.05405 0.54054 0.02703
+(Ambiguity characters are used to calculate freqs.)
+
+
+# constant sites:      0 (0.00%)
+Time used:  0:15
+
+mean of parameters using all iterations
+   0.99941   0.46221   0.69264   0.14526   0.01328   0.37897   1.90679
+
+Species tree for FigTree.  Branch lengths = posterior mean times; 95% CIs = labels
+((1_a, 2_b) 6 , (3_c, 4_d) 7 ) 5 ;
+
+((a: 0.462214, b: 0.462214): 0.537192, (c: 0.692641, d: 0.692641): 0.306766);
+
+((a: 0.462214, b: 0.462214) [&95%HPD={0.462214, 0.462214}]: 0.537192, (c: 0.692641, d: 0.692641) [&95%HPD={0.692641, 0.692641}]: 0.306766) [&95%HPD={0.999407, 0.999407}];
+
+
+Posterior mean (95% Equal-tail CI) (95% HPD CI) HPD-CI-width
+
+t_n5           0.9994 ( 0.9994,  0.9994) ( 0.9994,  0.9994)  0.0000
+t_n6           0.4622 ( 0.4622,  0.4622) ( 0.4622,  0.4622)  0.0000
+t_n7           0.6926 ( 0.6926,  0.6926) ( 0.6926,  0.6926)  0.0000
+mu             0.1453 ( 0.1453,  0.1453) ( 0.1453,  0.1453)  0.0000
+sigma2         0.0133 ( 0.0133,  0.0133) ( 0.0133,  0.0133)  0.0000
+drift          0.3790 ( 0.3790,  0.3790) ( 0.3790,  0.3790)  0.0000
+alpha          1.9097 ( 0.4137,  5.0287) ( 0.2085,  4.2450)  4.0365
+lnL          -50.1040 (-51.9100, -49.1120) (-51.5480, -48.9870)  2.5610
