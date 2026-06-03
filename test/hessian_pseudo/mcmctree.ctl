@@ -6,7 +6,7 @@
 
          ndata = 1
        seqtype = 2
-       usedata = 2 in.BV 1
+       usedata = 0 * 2 in.BV 1
          clock = 32 * 3 rate_martingale_AR, 31 lograte_martingale_AR, 32 full GBM
 *      RootAge = 'B(3.20,4.51,0.025,0.01)'  * safe constraint on root age, used if no fossil for root.
 
@@ -22,12 +22,12 @@
 
    rgene_gamma = 1 50 1
   sigma2_gamma = 1 10 1
-  drift_lnorm  = 0.2 10 1
+  drift_lnorm  = 3 0.1 1
 
       finetune = 1: .1 .1 .1 .1 .1 .1 * auto (0 or 1): times, musigma2, rates, mixing, paras, FossilErr
 
          print = 1
-        burnin = 1000
-      sampfreq = 100
+        burnin = 2000
+      sampfreq = 200
        nsample = 1000
 
