@@ -2088,7 +2088,7 @@ int collectx(FILE* fout, double x[])
 	      else if (g > 1)  fprintf(fout, "\tdrift_%d", i + 1);
 	      else             fprintf(fout, "\tdrift");
 	   }
-	   x[np++] = data.drift[i];
+	   x[np++] = log(data.drift[i]);
 	}
       if (mcmc.print >= 2)
          for (i = 0; i < g; i++) {
