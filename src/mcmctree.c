@@ -1157,7 +1157,7 @@ int GetOptions(char *ctlf)
         "TipDate", "RootAge", "fossilerror", "alpha", "ncatG", "cleandata",
         "BDparas", "kappa_gamma", "alpha_gamma", "rgene_gamma", "sigma2_gamma", 
         "print", "burnin", "sampfreq", "nsample", "finetune",
-	"drift_lnorm"
+	"drift_norm"
  };
    double t = 1, *eps = mcmc.steplength;
    FILE  *fctl = zopen(ctlf, "r");
@@ -3348,9 +3348,9 @@ if (data.rgeneprior == 0) {
       double ds = ynew - y;  /* = log(pnew) - log(pold) */
       double logg = log((double)g);
 
-      if (sigma <= 0) zerror("drift_lnorm: sigma should be > 0");
-      if (alpha <= 0) zerror("drift_lnorm: alpha should be > 0");
-      if (sumold <= 0 || sumnew <= 0) zerror("sum drift <= 0");
+      if (sigma <= 0) zerror("drift_norm: sigma should be > 0");
+      if (alpha <= 0) zerror("drift_norm: alpha should be > 0");
+      if (sumold < 0 || sumnew < 0) zerror("sum drift <= 0");
 
       lnacceptance +=
          -g * alpha * log(sumnew / sumold)
