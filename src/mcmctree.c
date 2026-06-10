@@ -179,6 +179,7 @@ struct DATA { /* locus-specific data and tree information */
    int    rgeneprior;         /* 0: gamma-Dirichlet; 1: conditional iid */
    double rgene[NGENE + 1], sigma2[NGENE + 1], rgenepara[3], sigma2para[3];
    double drift[NGENE + 1], driftpara[3]; //SW
+   double rgeneInf[NGENE + 1], rgeneInfpara[3]; //SW
    double *blMLE[NGENE], *Gradient[NGENE], *Hessian[NGENE];
    int    transform;
 }  data;
@@ -405,7 +406,7 @@ int GetMem(void)
    /* setting up space and offset for MCMC steplengths (steplength) */
    int g1 = g + (data.rgeneprior == 1);
    mcmc.nsteplength = (s - 1);                   /* t (node ages)  */
-   mcmc.nsteplength += g1 + g1*(com.clock > 1) + g1*(com.clock > 1);    /* mu[] & sigma2[] & drift[] */
+   mcmc.nsteplength += g1 + g1*(com.clock > 1) + g1*(com.clock > 1) + g1*(com.clock > 1);    /* mu[] & sigma2[] & drift[] & rgeneInf[] */
    if (com.clock > 1)      mcmc.nsteplength += g*(s * 2 - 2);   /* branch rates */
    if (mcmc.usedata == 1)  mcmc.nsteplength += g*(!com.fix_kappa + !com.fix_alpha);   /* subst paras */
    mcmc.nsteplength += 1 + (data.pfossilerror[0] > 0);    /* mixing & fossilerror */
@@ -417,7 +418,7 @@ int GetMem(void)
    mcmc.accept = (char*)(mcmc.Pjump + mcmc.nsteplength);
    mcmc.steplengthOffset[0] = 0;                 /* t */
    mcmc.steplengthOffset[1] = s - 1;             /* mu[] & sigma2[] & drift[] */
-   mcmc.steplengthOffset[2] = mcmc.steplengthOffset[1] + g1 + g1*(com.clock > 1) + g1*(com.clock > 1);              /* branch rates */
+   mcmc.steplengthOffset[2] = mcmc.steplengthOffset[1] + g1 + g1*(com.clock > 1) + g1*(com.clock > 1) + g1*(com.clock > 1);              /* branch rates */
    mcmc.steplengthOffset[3] = mcmc.steplengthOffset[2] + (com.clock > 1)*g*(s * 2 - 2);        /* subst paras */
    mcmc.steplengthOffset[4] = mcmc.steplengthOffset[3] + (mcmc.usedata == 1)*g*(!com.fix_kappa + !com.fix_alpha);  /* mixing */
    mcmc.steplengthOffset[5] = mcmc.steplengthOffset[4] + 1;                                    /* fossilerror */
@@ -1150,14 +1151,15 @@ int GenerateBlengthGH(char infile[])
 int GetOptions(char *ctlf)
 {
    int  transform0 = ARCSIN_B; /* default transform: SQRT_B, LOG_B, ARCSIN_B */
-   int  iopt, i, j, nopt = 33, lline = 4096; //SW from 32 to 33
-   char line[4096], *pline, opt[33], *comment = "*#", ch;
+   int  iopt, i, j, nopt = 34, lline = 4096; //SW from 32 to 33
+   char line[4096], *pline, opt[34], *comment = "*#", ch;
    char *optstr[] = { "seed", "seqfile","treefile", "outfile", "mcmcfile", "checkpoint", "BayesFactorBeta",
         "seqtype", "aaRatefile", "icode", "noisy", "usedata", "ndata", "duplication", "model", "clock",
         "TipDate", "RootAge", "fossilerror", "alpha", "ncatG", "cleandata",
         "BDparas", "kappa_gamma", "alpha_gamma", "rgene_gamma", "sigma2_gamma", 
         "print", "burnin", "sampfreq", "nsample", "finetune",
-	"drift_norm"
+	"drift_norm", //drifted GBM
+	"rgeneInf_gamma", // OU
  };
    double t = 1, *eps = mcmc.steplength;
    FILE  *fctl = zopen(ctlf, "r");
@@ -1278,6 +1280,10 @@ int GetOptions(char *ctlf)
                case (32):
                   sscanf(pline + 1, "%lf%lf%lf", data.driftpara, data.driftpara + 1, data.driftpara + 2);
                   if (data.driftpara[2] <= 0) data.driftpara[2] = 1;
+                  break;
+		case (33):
+                  sscanf(pline + 1, "%lf%lf%lf", data.rgeneInfpara, data.rgeneInfpara + 1, data.rgeneInfpara + 2);
+                  if (data.rgeneInfpara[2] <= 0) data.rgeneInfpara[2] = 1;
                   break;
                }
                break;
@@ -1995,12 +2001,15 @@ int GetInitials(void)
 
    /* initial mu (mean rates) for genes */
    np = stree.nspecies - 1 + g1;
-   for (i = 0; i < g1; i++)
+   for (i = 0; i < g1; i++){
       data.rgene[i] = smallr + rndgamma(a_r) / b_r;   /* mu_i & mu_0 */
+      data.rgeneInf[i] = smallr + rndgamma(data.rgeneInfpara[0]) / data.rgeneInfpara[1];   /* mu_i & mu_0 */
+   }
 
    if (com.clock > 1) {               /* sigma2, rates for nodes or branches */
       np += g1;
-      np += g1;//SW
+      np += g1;//SW GBM
+      np += g1; //rgeneInf
       if (mcmc.print >= 2) np += g*(stree.nnode - 1);
 
       /* sigma2 in lnrates among loci */
@@ -2081,15 +2090,25 @@ int collectx(FILE* fout, double x[])
          }
          x[np++] = data.sigma2[i];
       }
-	//SW
-	for (i = 0; i < g1; i++) {
-	   if (firsttime && fout) {
-	      if (i == g)      fprintf(fout, "\tdrift_bar");
-	      else if (g > 1)  fprintf(fout, "\tdrift_%d", i + 1);
-	      else             fprintf(fout, "\tdrift");
-	   }
-	   x[np++] = log(data.drift[i]);
-	}
+      //SW
+      for (i = 0; i < g1; i++) {
+         if (firsttime && fout) {
+	    if (i == g)      fprintf(fout, "\tdrift_bar");
+	    else if (g > 1)  fprintf(fout, "\tdrift_%d", i + 1);
+	    else             fprintf(fout, "\tdrift");
+         }
+         x[np++] = log(data.drift[i]);
+      }
+      //SW OU
+      for (i = 0; i < g1; i++) {
+         if (firsttime && fout) {
+	    if (i == g)      fprintf(fout, "\trgeneInf_bar");
+	    else if (g > 1)  fprintf(fout, "\trgeneInf_%d", i + 1);
+	    else             fprintf(fout, "\trgeneInf");
+         }
+         x[np++] = data.rgeneInf[i];
+      }
+
       if (mcmc.print >= 2)
          for (i = 0; i < g; i++) {
             for (j = 0; j < stree.nnode; j++) {
@@ -3306,8 +3325,8 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
    */
    int g = data.ngene, g1 = g + (data.rgeneprior == 1);
    //int locus, ip, np = 1 + (com.clock > 1), j;
-   int locus, ip, np = 2 + (com.clock > 1), j;//SW, increase np from "1+" to "2+" for drift
-   char *parastr[3] = { "mu", "sigma2", "drift" };
+   int locus, ip, np = 3 + (com.clock > 1), j;//SW, increase np from "1+" to "2+" for drift (GBM) and rgeneInfo (OU)
+   char *parastr[4] = { "mu", "sigma2", "drift", "rgeneInf" };
    double lnacceptance, lnpDinew = -1e99, lnpRnew = 0, lnLd = 0;
    double yb[2] = { -99,99 }, y, ynew, pold, pnew, sumold, sumnew, e;
    double *para, *gD, a, b, bold, bnew;   /* gamma-Dirichlet */
@@ -3320,6 +3339,7 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
       if (ip == 0) { para = data.rgene;  gD = data.rgenepara; } /* rgene (mu) */
       else if (ip == 1)        { para = data.sigma2; gD = data.sigma2para; } /* sigma2 */
       else if (ip == 2)        { para = data.drift; gD = data.driftpara; } /* drift, SW */
+      else if (ip == 3)        { para = data.rgeneInf; gD = data.rgeneInfpara; } /* rgeneInf, SW */
 
 	//SW
       for (locus = 0; locus < g1; locus++) {
@@ -3344,7 +3364,7 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
 
 if (data.rgeneprior == 0) {
    if (ip == 2) {  /* drift prior: joint LogNormal-Dirichlet form from derivation */
-      double m = gD[0], sigma = gD[1], alpha = gD[2];
+      double m = gD[0], sigma = sqrt(gD[1]), alpha = gD[2];
       double ds = ynew - y;  /* = log(pnew) - log(pold) */
       double logg = log((double)g);
 
@@ -3450,138 +3470,345 @@ void getSinvDetS(double space[])
 
 double lnpriorRates(void)
 {
-   /* This calculates the log of the prior of branch rates under the two rate-drift models:
-      the independent rates (clock=2) and the geometric Brownian motion model (clock=3).
+   /* This calculates the log of the prior of branch rates under the rate-drift models.
 
-      clock=2: the algorithm cycles through the branches, and add up the log
-      probabilities.
-      clock=3: the root rate is mu or data.rgene[].  The algorithm cycles through
-      the ancestral nodes and deals with the two daughter branches.
+      clock=2:
+         independent rates model
+         - priorrate=1: gamma prior on rates
+         - priorrate=0: lognormal prior on rates
+
+      clock=3/30/31/32/33:
+         GBM / Brownian-motion style models on log-rates
+
+      clock=33:
+         OU process on log-rates:
+            dY_t = theta * (mu - Y_t) dt + sigma dW_t
+         with
+            mu = log(data.rgene[locus])
+
+         For each internal node, conditional on parent log-rate Y0 = log(rA),
+         the two daughter log-rates (Y1,Y2) are modeled jointly as bivariate normal.
    */
+
    int i, inode, locus, dad = -1, g = data.ngene, s = stree.nspecies, sons[2];
-   double lnpR = -log(2 * Pi) / 2.0*(2 * s - 2)*g, t, tA, t1, t2, Tinv[4], detT;
+   double lnpR = -log(2 * Pi) / 2.0 * (2 * s - 2) * g;
+   double t, tA, t1, t2, Tinv[4], detT;
    double zz, r = -1, rA, r1, r2, y1, y2;
    double a, b;
 
    if (com.clock >= 3 && data.priorrate == 1)
-      zerror("gamma prior for rates for clock3 not implemented yet.");
+      zerror("gamma prior for rates for clock>=3 not implemented yet.");
+
    else if (com.clock == 2 && data.priorrate == 1) {   /* clock2, gamma rate prior */
       lnpR = 0;
       for (locus = 0; locus < g; locus++) {
          a = data.rgene[locus] * data.rgene[locus] / data.sigma2[locus];
          b = data.rgene[locus] / data.sigma2[locus];
-         lnpR += (a*log(b) - lgamma(a)) * (2 * s - 2);
+         lnpR += (a * log(b) - lgamma(a)) * (2 * s - 2);
          for (inode = 0; inode < stree.nnode; inode++) {
             if (inode == stree.root) continue;
             r = stree.nodes[inode].rates[locus];
-            lnpR += -b*r + (a - 1)*log(r);
+            lnpR += -b * r + (a - 1) * log(r);
          }
       }
    }
-   else if (com.clock == 2 && data.priorrate == 0) {  /* clock2, LN rate prior */
+
+   else if (com.clock == 2 && data.priorrate == 0) {   /* clock2, LN rate prior */
       for (locus = 0; locus < g; locus++)
-         lnpR -= log(data.sigma2[locus]) / 2.*(2 * s - 2);
+         lnpR -= log(data.sigma2[locus]) / 2.0 * (2 * s - 2);
+
       for (inode = 0; inode < stree.nnode; inode++) {
          if (inode == stree.root) continue;
          for (locus = 0; locus < g; locus++) {
             r = stree.nodes[inode].rates[locus];
-            zz = log(r / data.rgene[locus]) + data.sigma2[locus] / 2;
-            lnpR += -zz*zz / (2 * data.sigma2[locus]) - log(r);
+            zz = log(r / data.rgene[locus]) + data.sigma2[locus] / 2.0;
+            lnpR += -zz * zz / (2.0 * data.sigma2[locus]) - log(r);
          }
       }
    }
-	//SW
-   else if ( (com.clock == 3 || com.clock == 31 || com.clock == 32) && data.priorrate == 0) {  /* clock3, LN rate prior */
+
+   else if ((com.clock == 3 || com.clock == 30 || com.clock == 31 ||
+             com.clock == 32 || com.clock == 33) &&
+            data.priorrate == 0) {  /* correlated log-rate models */
+
       for (inode = 0; inode < stree.nnode; inode++) {
-         if (stree.nodes[inode].nson == 0) continue; /* skip the tips */
+         if (stree.nodes[inode].nson == 0) continue;   /* skip tips */
+
          dad = stree.nodes[inode].father;
          for (i = 0; i < 2; i++) sons[i] = stree.nodes[inode].sons[i];
+
          t = stree.nodes[inode].age;
          if (inode == stree.root) tA = 0;
-         else                     tA = (stree.nodes[dad].age - t) / 2;
-         t1 = (t - stree.nodes[sons[0]].age) / 2;
-         t2 = (t - stree.nodes[sons[1]].age) / 2;
-         detT = t1*t2 + tA*(t1 + t2);
-         Tinv[0] = (tA + t2) / detT;
-         Tinv[1] = Tinv[2] = -tA / detT;
-         Tinv[3] = (tA + t1) / detT;
+         else                     tA = (stree.nodes[dad].age - t) / 2.0;
+
+         t1 = (t - stree.nodes[sons[0]].age) / 2.0;
+         t2 = (t - stree.nodes[sons[1]].age) / 2.0;
+
          for (locus = 0; locus < g; locus++) {
-		//SW
-		switch (com.clock) {
-			case 3: data.drift[locus] = 1; break;
-			case 31: data.drift[locus] = exp(data.sigma2[locus]/2); break;
-			case 32: break;
-		}
-		//printf("%f\n", data.drift[locus]);
+
             rA = (inode == stree.root ? data.rgene[locus] : stree.nodes[inode].rates[locus]);
             r1 = stree.nodes[sons[0]].rates[locus];
             r2 = stree.nodes[sons[1]].rates[locus];
-            //y1 = log(r1 / rA) + (tA + t1)*( data.sigma2[locus]/2 - data.drift[locus] );
-            //y2 = log(r2 / rA) + (tA + t2)*( data.sigma2[locus]/2 - data.drift[locus] );
-            y1 = log(r1 / rA) + (tA + t1)*( data.sigma2[locus]/2 - log(data.drift[locus]) );
-            y2 = log(r2 / rA) + (tA + t2)*( data.sigma2[locus]/2 - log(data.drift[locus]) );
-            zz = (y1*y1*Tinv[0] + 2 * y1*y2*Tinv[1] + y2*y2*Tinv[3]);
-            lnpR -= zz / (2 * data.sigma2[locus]) + log(detT*square(data.sigma2[locus])) / 2 + log(r1*r2);
+
+            if (com.clock == 3 || com.clock == 30 || com.clock == 31 ||
+                com.clock == 32) {
+               /* Existing GBM/Brownian block */
+
+               detT = t1 * t2 + tA * (t1 + t2);
+               Tinv[0] = (tA + t2) / detT;
+               Tinv[1] = Tinv[2] = -tA / detT;
+               Tinv[3] = (tA + t1) / detT;
+
+               switch (com.clock) {
+               case 3:
+                  data.drift[locus] = 1;
+                  break;
+               case 31:
+                  data.drift[locus] = exp(data.sigma2[locus] / 2.0);
+                  break;
+               case 32:
+                  break;
+               default:
+                  break;
+               }
+
+               y1 = log(r1 / rA) + (tA + t1) *
+                    (data.sigma2[locus] / 2.0 - log(data.drift[locus]));
+               y2 = log(r2 / rA) + (tA + t2) *
+                    (data.sigma2[locus] / 2.0 - log(data.drift[locus]));
+
+               zz = y1 * y1 * Tinv[0] + 2.0 * y1 * y2 * Tinv[1] + y2 * y2 * Tinv[3];
+
+               lnpR -= zz / (2.0 * data.sigma2[locus])
+                    +  log(detT * square(data.sigma2[locus])) / 2.0
+                    +  log(r1 * r2);
+            }
+
+            else if (com.clock == 33) {
+               /* OU model on log-rates
+                  Assumptions:
+                  - theta is stored in data.drift[locus]
+                  - mu = log(data.rgene[locus])
+               */
+               double theta, sigma2, mu;
+               double y0, log_r1, log_r2;
+               double m1, m2, z1, z2;
+               double v11, v22, v12, detS;
+               double Sinv00, Sinv01, Sinv11;
+
+               theta  = data.drift[locus];
+               sigma2 = data.sigma2[locus];
+               //mu     = log(data.rgene[locus]);
+               mu     = log(data.rgeneInf[locus]);
+
+               y0     = log(rA);
+               log_r1 = log(r1);
+               log_r2 = log(r2);
+
+               if (theta < 0)
+                  zerror("OU theta must be >= 0 in lnpriorRates().");
+
+               if (fabs(theta) < 1e-12) {
+                  /* Brownian-motion limit */
+                  m1 = y0;
+                  m2 = y0;
+
+                  z1 = log_r1 - m1;
+                  z2 = log_r2 - m2;
+
+                  v11 = sigma2 * (tA + t1);
+                  v22 = sigma2 * (tA + t2);
+                  v12 = sigma2 * tA;
+               }
+               else {
+                  m1 = (y0 - mu) * exp(-theta * (tA + t1)) + mu;
+                  m2 = (y0 - mu) * exp(-theta * (tA + t2)) + mu;
+
+                  z1 = log_r1 - m1;
+                  z2 = log_r2 - m2;
+
+                  v11 = sigma2 / (2.0 * theta) *
+                        (1.0 - exp(-2.0 * theta * (tA + t1)));
+                  v22 = sigma2 / (2.0 * theta) *
+                        (1.0 - exp(-2.0 * theta * (tA + t2)));
+                  v12 = sigma2 / (2.0 * theta) *
+                        (exp(-theta * (t1 + t2)) -
+                         exp(-theta * (2.0 * tA + t1 + t2)));
+               }
+
+               detS = v11 * v22 - v12 * v12;
+               if (detS <= 0)
+                  zerror("OU covariance matrix is not positive definite in lnpriorRates().");
+               Sinv00 =  v22 / detS;
+               Sinv01 = -v12 / detS;
+               Sinv11 =  v11 / detS;
+
+               zz = z1 * z1 * Sinv00 + 2.0 * z1 * z2 * Sinv01 + z2 * z2 * Sinv11;
+
+               lnpR -= 0.5 * zz + 0.5 * log(detS) + log(r1 * r2);
+            }
          }
       }
    }
+
    return lnpR;
 }
+
 
 double lnpriorRatioRates(int locus, int inodeChanged, double rold)
 {
    /* This calculates the lnpriorRatio when one rate is changed.
-      If inodeChanged is tip, we sum over 1 term (equation 7 in RY2007).
+      If inodeChanged is tip, we sum over 1 term.
       If inodeChanged is not tip, we sum over 2 terms.
+
+      clock=2:
+         independent-rates model
+         - priorrate=0: lognormal prior
+         - priorrate=1: gamma prior
+
+      clock=3/30/31/32/34:
+         Brownian / GBM-type correlated-rates models
+
+      clock=33:
+         OU model on log-rates, using
+            theta = data.drift[locus]
+            mu    = log(data.rgene[locus])
    */
    double rnew = stree.nodes[inodeChanged].rates[locus], lnpRd = 0, a, b, z, znew;
-   double zz, rA, r1, r2, y1, y2, t, tA, t1, t2, Tinv[4], detT, drift;
+   double zz, rA, r1, r2, y1, y2, t, tA, t1, t2, drift;
    int i, inode, ir, dad = -1, sons[2], OldNew;
 
    if (com.clock == 2 && data.priorrate == 0) {         /* clock2, LN rate prior */
-      z = log(rold / data.rgene[locus]) + data.sigma2[locus] / 2;;
+      z = log(rold / data.rgene[locus]) + data.sigma2[locus] / 2;
       znew = log(rnew / data.rgene[locus]) + data.sigma2[locus] / 2;
-      lnpRd = -log(rnew / rold) - (znew*znew - z*z) / (2 * data.sigma2[locus]);
+      lnpRd = -log(rnew / rold) - (znew * znew - z * z) / (2 * data.sigma2[locus]);
    }
-   else if (com.clock == 2 && data.priorrate == 1) {   /* clock2, gamma rate prior */
+
+   else if (com.clock == 2 && data.priorrate == 1) {    /* clock2, gamma rate prior */
       a = data.rgene[locus] * data.rgene[locus] / data.sigma2[locus];
       b = data.rgene[locus] / data.sigma2[locus];
-      lnpRd = -b*(rnew - rold) + (a - 1)*log(rnew / rold);
+      lnpRd = -b * (rnew - rold) + (a - 1) * log(rnew / rold);
    }
-   else {                                          /* clock3 */
+
+   else {                                                /* correlated-rates models */
       for (ir = 0; ir < (stree.nodes[inodeChanged].nson == 0 ? 1 : 2); ir++) {
          inode = (ir == 0 ? stree.nodes[inodeChanged].father : inodeChanged);
          dad = stree.nodes[inode].father;
          for (i = 0; i < 2; i++) sons[i] = stree.nodes[inode].sons[i];
+
          t = stree.nodes[inode].age;
          if (inode == stree.root) tA = 0;
-         else                   tA = (stree.nodes[dad].age - t) / 2;
-         t1 = (t - stree.nodes[sons[0]].age) / 2;
-         t2 = (t - stree.nodes[sons[1]].age) / 2;
-         detT = t1*t2 + tA*(t1 + t2);
-         Tinv[0] = (tA + t2) / detT;
-         Tinv[1] = Tinv[2] = -tA / detT;
-         Tinv[3] = (tA + t1) / detT;
+         else                     tA = (stree.nodes[dad].age - t) / 2.0;
+
+         t1 = (t - stree.nodes[sons[0]].age) / 2.0;
+         t2 = (t - stree.nodes[sons[1]].age) / 2.0;
+
          for (OldNew = 0; OldNew < 2; OldNew++) {  /* old rate & new rate */
             stree.nodes[inodeChanged].rates[locus] = (OldNew == 0 ? rold : rnew);
+
             rA = (inode == stree.root ? data.rgene[locus] : stree.nodes[inode].rates[locus]);
             r1 = stree.nodes[sons[0]].rates[locus];
             r2 = stree.nodes[sons[1]].rates[locus];
-            switch (com.clock) {
-            case 3:  drift = 1; break;
-            case 31: drift = exp(data.sigma2[locus] / 2); break;
-            default: drift = data.drift[locus]; break;  /* clock=32 */
+
+            if (com.clock == 33) {
+               /* OU model on log-rates
+                  Assumptions:
+                  - theta is stored in data.drift[locus]
+                  - mu = log(data.rgene[locus])
+               */
+               double theta, sigma2, mu;
+               double y0, log_r1, log_r2;
+               double m1, m2, z1, z2;
+               double v11, v22, v12, detS;
+               double Sinv00, Sinv01, Sinv11;
+
+               theta  = data.drift[locus];
+               sigma2 = data.sigma2[locus];
+               //mu     = log(data.rgene[locus]);
+               mu     = log(data.rgeneInf[locus]);
+
+               if (theta < 0)
+                  zerror("OU theta must be >= 0 in lnpriorRatioRates().");
+
+               y0     = log(rA);
+               log_r1 = log(r1);
+               log_r2 = log(r2);
+
+               if (fabs(theta) < 1e-12) {
+                  /* Brownian-motion limit */
+                  m1 = y0;
+                  m2 = y0;
+
+                  z1 = log_r1 - m1;
+                  z2 = log_r2 - m2;
+
+                  v11 = sigma2 * (tA + t1);
+                  v22 = sigma2 * (tA + t2);
+                  v12 = sigma2 * tA;
+               }
+               else {
+                  m1 = (y0 - mu) * exp(-theta * (tA + t1)) + mu;
+                  m2 = (y0 - mu) * exp(-theta * (tA + t2)) + mu;
+
+                  z1 = log_r1 - m1;
+                  z2 = log_r2 - m2;
+
+                  v11 = sigma2 / (2.0 * theta) *
+                        (1.0 - exp(-2.0 * theta * (tA + t1)));
+                  v22 = sigma2 / (2.0 * theta) *
+                        (1.0 - exp(-2.0 * theta * (tA + t2)));
+                  v12 = sigma2 / (2.0 * theta) *
+                        (exp(-theta * (t1 + t2)) -
+                         exp(-theta * (2.0 * tA + t1 + t2)));
+               }
+
+               detS = v11 * v22 - v12 * v12;
+               if (detS <= 0)
+                  zerror("OU covariance matrix is not positive definite in lnpriorRatioRates().");
+
+               Sinv00 =  v22 / detS;
+               Sinv01 = -v12 / detS;
+               Sinv11 =  v11 / detS;
+
+               zz = z1 * z1 * Sinv00 + 2.0 * z1 * z2 * Sinv01 + z2 * z2 * Sinv11;
+               zz = 0.5 * zz + log(r1 * r2);
             }
-            y1 = log(r1 / rA) + (tA + t1)*(data.sigma2[locus] / 2 - log(drift));
-            y2 = log(r2 / rA) + (tA + t2)*(data.sigma2[locus] / 2 - log(drift));
-            zz = (y1*y1*Tinv[0] + 2 * y1*y2*Tinv[1] + y2*y2*Tinv[3]);
-            zz = zz / (2 * data.sigma2[locus]) + log(r1*r2);
+            else {
+               double Tinv[4], detT_local;
+
+               detT_local = t1 * t2 + tA * (t1 + t2);
+               Tinv[0] = (tA + t2) / detT_local;
+               Tinv[1] = Tinv[2] = -tA / detT_local;
+               Tinv[3] = (tA + t1) / detT_local;
+
+               switch (com.clock) {
+               case 3:
+                  drift = 1;
+                  break;
+               case 31:
+                  drift = exp(data.sigma2[locus] / 2.0);
+                  break;
+               default:
+                  drift = data.drift[locus];   /* clock=30,32,34 */
+                  break;
+               }
+
+               y1 = log(r1 / rA) + (tA + t1) * (data.sigma2[locus] / 2.0 - log(drift));
+               y2 = log(r2 / rA) + (tA + t2) * (data.sigma2[locus] / 2.0 - log(drift));
+
+               zz = y1 * y1 * Tinv[0] + 2.0 * y1 * y2 * Tinv[1] + y2 * y2 * Tinv[3];
+               zz = zz / (2.0 * data.sigma2[locus]) + log(r1 * r2);
+            }
+
             lnpRd -= (OldNew == 0 ? -1 : 1) * zz;
          }
       }
    }
+
+   stree.nodes[inodeChanged].rates[locus] = rnew;
    return(lnpRd);
 }
+
 
 
 int UpdateRates(double *lnL, double steplength[], char accept[])
