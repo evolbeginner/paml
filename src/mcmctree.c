@@ -178,8 +178,9 @@ struct DATA { /* locus-specific data and tree information */
    double pfossilerror[3], /* (p_beta, q_beta, NminCorrect) */ Pfossilerr, *CcomFossilErr;
    int    rgeneprior;         /* 0: gamma-Dirichlet; 1: conditional iid */
    double rgene[NGENE + 1], sigma2[NGENE + 1], rgenepara[3], sigma2para[3];
-   double drift[NGENE + 1], driftpara[3]; //SW
-   double rgeneOpt[NGENE + 1], rgeneOptpara[3]; //SW
+   double drift[NGENE + 1], driftpara[3]; //SW GBM
+   double rgeneOpt[NGENE + 1], rgeneOptpara[3]; //SW OU rgeneOpt
+   double theta[NGENE + 1], thetapara[3]; //SW OU theta
    double *blMLE[NGENE], *Gradient[NGENE], *Hessian[NGENE];
    int    transform;
 }  data;
@@ -1151,16 +1152,17 @@ int GenerateBlengthGH(char infile[])
 int GetOptions(char *ctlf)
 {
    int  transform0 = ARCSIN_B; /* default transform: SQRT_B, LOG_B, ARCSIN_B */
-   int  iopt, i, j, nopt = 34, lline = 4096; //SW from 32 to 33
+   int  iopt, i, j, nopt = 35, lline = 4096; //SW from 32 to 35 for drift(1) and OU(2)
    char line[4096], *pline, opt[34], *comment = "*#", ch;
    char *optstr[] = { "seed", "seqfile","treefile", "outfile", "mcmcfile", "checkpoint", "BayesFactorBeta",
         "seqtype", "aaRatefile", "icode", "noisy", "usedata", "ndata", "duplication", "model", "clock",
         "TipDate", "RootAge", "fossilerror", "alpha", "ncatG", "cleandata",
         "BDparas", "kappa_gamma", "alpha_gamma", "rgene_gamma", "sigma2_gamma", 
         "print", "burnin", "sampfreq", "nsample", "finetune",
-   "drift_norm", //drifted GBM
-   "rgeneOpt_gamma", // OU
- };
+        "drift_norm", //drifted GBM
+        "rgeneOpt_gamma", // OU rgeneOpt
+        "theta_gamma", // OU theta
+   };
    double t = 1, *eps = mcmc.steplength;
    FILE  *fctl = zopen(ctlf, "r");
 
@@ -1284,6 +1286,10 @@ int GetOptions(char *ctlf)
                case (33): //OU, clocl=4|40
                   sscanf(pline + 1, "%lf%lf%lf", data.rgeneOptpara, data.rgeneOptpara + 1, data.rgeneOptpara + 2);
                   if (data.rgeneOptpara[2] <= 0) data.rgeneOptpara[2] = 1;
+                  break;
+               case (34): //OU, clocl=4|40
+                  sscanf(pline + 1, "%lf%lf%lf", data.thetapara, data.thetapara + 1, data.thetapara + 2);
+                  if (data.thetapara[2] <= 0) data.thetapara[2] = 1;
                   break;
                }
                break;
@@ -2016,14 +2022,19 @@ int GetInitials(void)
    if (com.clock > 1) {               /* sigma2, rates for nodes or branches */
       np += g1;
       np += g1;//SW GBM
-      np += g1; //rgeneOpt
+      if (com.clock == 4 || com.clock == 40){
+         np += g1; //rgeneOpt
+      }
       if (mcmc.print >= 2) np += g*(stree.nnode - 1);
 
       /* sigma2 in lnrates among loci */
       for (i = 0; i < g1; i++){
          data.sigma2[i] = smallr + rndgamma(data.sigma2para[0]) / data.sigma2para[1];
-         //data.drift[i] = smallr + (0) + 0.1 * rand() / (RAND_MAX + 1.0);//SW use Unif
-         data.drift[i] = exp(rand_normal(0, 1));         
+         if(com.clock == 4 || com.clock == 40){ //OU
+            data.theta[i] = smallr + rndgamma(data.thetapara[0]) / data.thetapara[1];
+         } else { //GBM
+            data.drift[i] = exp(rand_normal(data.driftpara[0], data.driftpara[1]));
+         }
       }
       /* rates at nodes */
       for (j = 0; j < stree.nnode; j++) {
@@ -2097,23 +2108,31 @@ int collectx(FILE* fout, double x[])
          }
          x[np++] = data.sigma2[i];
       }
-      //SW
-      for (i = 0; i < g1; i++) {
-         if (firsttime && fout) {
-       if (i == g)      fprintf(fout, "\tdrift_bar");
-       else if (g > 1)  fprintf(fout, "\tdrift_%d", i + 1);
-       else             fprintf(fout, "\tdrift");
+      //SW GBM
+      if (com.clock == 3 || com.clock == 30 || com.clock == 31 || com.clock == 32){
+         for (i = 0; i < g1; i++) {
+            if (firsttime && fout) {
+               if (i == g)      fprintf(fout, "\tdrift_bar");
+               else if (g > 1)  fprintf(fout, "\tdrift_%d", i + 1);
+               else             fprintf(fout, "\tdrift");
+            }
+            x[np++] = log(data.drift[i]); //log
          }
-         x[np++] = log(data.drift[i]);
-      }
-      //SW OU
-      for (i = 0; i < g1; i++) {
-         if (firsttime && fout) {
-       if (i == g)      fprintf(fout, "\trgeneOpt_bar");
-       else if (g > 1)  fprintf(fout, "\trgeneOpt_%d", i + 1);
-       else             fprintf(fout, "\trgeneOpt");
+      }else{ //SW OU
+         for (i = 0; i < g1; i++) {
+            if (firsttime && fout) {
+               if (i == g)      fprintf(fout, "\trgeneOpt_bar");
+               else if (g > 1)  fprintf(fout, "\trgeneOpt_%d", i + 1);
+               else             fprintf(fout, "\trgeneOpt");
+            }
+            x[np++] = data.rgeneOpt[i];
+            if (firsttime && fout) {
+               if (i == g)      fprintf(fout, "\ttheta_bar");
+               else if (g > 1)  fprintf(fout, "\ttheta_%d", i + 1);
+               else             fprintf(fout, "\ttheta");
+            }
+            x[np++] = data.theta[i]; //not log
          }
-         x[np++] = data.rgeneOpt[i];
       }
 
       if (mcmc.print >= 2)
@@ -3332,8 +3351,9 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
    */
    int g = data.ngene, g1 = g + (data.rgeneprior == 1);
    //int locus, ip, np = 1 + (com.clock > 1), j;
-   int locus, ip, np = 3 + (com.clock > 1), j;//SW, increase np from "1+" to "2+" for drift (GBM) and rgeneOpto (OU)
-   char *parastr[4] = { "mu", "sigma2", "drift", "rgeneOpt" };
+   int locus, ip, np = 3 + (com.clock > 1), j;//SW, increase np from "1+" to "2+" for drift (GBM) and rgeneOpt (OU)
+   np += (com.clock == 4 || com.clock == 40);
+   char *parastr[5] = { "mu", "sigma2", "drift", "rgeneOpt", "theta"};
    double lnacceptance, lnpDinew = -1e99, lnpRnew = 0, lnLd = 0;
    double yb[2] = { -99,99 }, y, ynew, pold, pnew, sumold, sumnew, e;
    double *para, *gD, a, b, bold, bnew;   /* gamma-Dirichlet */
@@ -3347,17 +3367,19 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
       else if (ip == 1)        { para = data.sigma2; gD = data.sigma2para; } /* sigma2 */
       else if (ip == 2)        { para = data.drift; gD = data.driftpara; } /* drift, SW */
       else if (ip == 3)        { para = data.rgeneOpt; gD = data.rgeneOptpara; } /* rgeneOpt, SW */
+      else if (ip == 4)        { para = data.theta; gD = data.thetapara;} /* rgeneOpt, SW */
+
 
    //SW
       for (locus = 0; locus < g1; locus++) {
          e = steplength[ip*g1 + locus];
          if (e <= 0) zerror("steplength = 0 in UpdateParaRates");
          for (j = 0, sumold = 0; j < g; j++) sumold += para[j];
-    pold = para[locus];
-    y = log(pold);
-    ynew = y + e*rndSymmetrical();
-    ynew = reflect(ynew, yb[0], yb[1]);
-    para[locus] = pnew = exp(ynew);
+         pold = para[locus];
+         y = log(pold);
+         ynew = y + e*rndSymmetrical();
+         ynew = reflect(ynew, yb[0], yb[1]);
+         para[locus] = pnew = exp(ynew);
          sumnew = sumold + pnew - pold; //Sum of mu_i
          lnacceptance = ynew - y;
     //printf("999\t%f\t%f\t%f\n", pold, ynew, y);
@@ -3369,28 +3391,28 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
             lnacceptance += lnLd;
          }
 
-if (data.rgeneprior == 0) {
-   if (ip == 2) {  /* drift prior: joint LogNormal-Dirichlet form from derivation */
-      double m = gD[0], sigma = sqrt(gD[1]), alpha = gD[2];
-      double ds = ynew - y;  /* = log(pnew) - log(pold) */
-      double logg = log((double)g);
+         if (data.rgeneprior == 0) {
+            if (ip == 2) {  /* drift prior: joint LogNormal-Dirichlet form from derivation */
+               double m = gD[0], sigma = sqrt(gD[1]), alpha = gD[2];
+               double ds = ynew - y;  /* = log(pnew) - log(pold) */
+               double logg = log((double)g);
 
-      if (sigma <= 0) zerror("drift_norm: sigma should be > 0");
-      if (alpha <= 0) zerror("drift_norm: alpha should be > 0");
-      if (sumold < 0 || sumnew < 0) zerror("sum drift <= 0");
+               if (sigma <= 0) zerror("drift_norm: sigma should be > 0");
+               if (alpha <= 0) zerror("drift_norm: alpha should be > 0");
+               if (sumold < 0 || sumnew < 0) zerror("sum drift <= 0");
 
-      lnacceptance +=
-         -g * alpha * log(sumnew / sumold)
-         + (alpha - 1) * ds
-         - (square(log(sumnew) - logg - m) - square(log(sumold) - logg - m))
-           / (2 * square(sigma));
-   }
-   else {
-      lnacceptance += (gD[0] - gD[2] * g)*log(sumnew / sumold)
-                   - gD[1] / g*(sumnew - sumold)
-                   + (gD[2] - 1)*(ynew - y);
-   }
-}
+               lnacceptance +=
+                  -g * alpha * log(sumnew / sumold)
+                  + (alpha - 1) * ds
+                  - (square(log(sumnew) - logg - m) - square(log(sumold) - logg - m))
+                    / (2 * square(sigma));
+            }
+            else {
+               lnacceptance += (gD[0] - gD[2] * g)*log(sumnew / sumold)
+                  - gD[1] / g*(sumnew - sumold)
+                  + (gD[2] - 1)*(ynew - y);
+            }
+         }
 
          else {                     /* conditional iid prior (Zhu et al. 2015 SB, p.279 eq. 8) */
             if (locus < g) {          /* mu_i & sigma2_i */
@@ -3484,10 +3506,10 @@ double lnpriorRates(void)
          - priorrate=1: gamma prior on rates
          - priorrate=0: lognormal prior on rates
 
-      clock=3/30/31/32/33:
+      clock=3/30/31/32:
          GBM / Brownian-motion style models on log-rates
 
-      clock=33:
+      clock=4/40:
          OU process on log-rates:
             dY_t = theta * (mu - Y_t) dt + sigma dW_t
          with
@@ -3591,7 +3613,7 @@ double lnpriorRates(void)
                     +  log(r1 * r2);
             }
 
-            else if (com.clock == 4 || com.clock == 50) {
+            else if (com.clock == 4 || com.clock == 40) {
                /* OU model on log-rates
                   Assumptions:
                   - theta is stored in data.drift[locus]
@@ -3603,7 +3625,7 @@ double lnpriorRates(void)
                double v11, v22, v12, detS;
                double Sinv00, Sinv01, Sinv11;
 
-               theta  = data.drift[locus];
+               theta  = data.theta[locus];
                sigma2 = data.sigma2[locus];
                //mu     = log(data.rgene[locus]);
                mu     = log(data.rgeneOpt[locus]);
@@ -3645,7 +3667,7 @@ double lnpriorRates(void)
 
                detS = v11 * v22 - v12 * v12;
                if (detS <= 0)
-                  zerror("OU covariance matrix is not positive definite in lnpriorRates().");
+                  zerror("OU cov matrix not posi definite in lnpriorRates().");
                Sinv00 =  v22 / detS;
                Sinv01 = -v12 / detS;
                Sinv11 =  v11 / detS;
@@ -3682,7 +3704,7 @@ double lnpriorRatioRates(int locus, int inodeChanged, double rold)
             mu    = log(data.rgene[locus])
    */
    double rnew = stree.nodes[inodeChanged].rates[locus], lnpRd = 0, a, b, z, znew;
-   double zz, rA, r1, r2, y1, y2, t, tA, t1, t2, drift;
+   double zz, rA, r1, r2, y1, y2, t, tA, t1, t2, drift, theta;
    int i, inode, ir, dad = -1, sons[2], OldNew;
 
    if (com.clock == 2 && data.priorrate == 0) {         /* clock2, LN rate prior */
@@ -3729,7 +3751,7 @@ double lnpriorRatioRates(int locus, int inodeChanged, double rold)
                double v11, v22, v12, detS;
                double Sinv00, Sinv01, Sinv11;
 
-               theta  = data.drift[locus];
+               theta  = data.theta[locus];
                sigma2 = data.sigma2[locus];
                //mu     = log(data.rgene[locus]);
                mu     = log(data.rgeneOpt[locus]);
@@ -3771,10 +3793,9 @@ double lnpriorRatioRates(int locus, int inodeChanged, double rold)
 
                detS = v11 * v22 - v12 * v12;
                if (detS <= 0)
-                  zerror("OU covariance matrix is not positive definite in lnpriorRatioRates().");
-
+                  zerror("OU cov matrix not posi definite in lnpriorRates().");
                Sinv00 =  v22 / detS;
-               Sinv01 = -v12 / detS;
+               Sinv01 = -v12 / detS; // SW: note the minus
                Sinv11 =  v11 / detS;
 
                zz = z1 * z1 * Sinv00 + 2.0 * z1 * z2 * Sinv01 + z2 * z2 * Sinv11;
@@ -3791,13 +3812,14 @@ double lnpriorRatioRates(int locus, int inodeChanged, double rold)
 
                switch (com.clock) {
                case 3:
+               case 30:
                   drift = 1;
                   break;
                case 31:
                   drift = exp(data.sigma2[locus] / 2.0);
                   break;
                default:
-                  drift = data.drift[locus];   /* clock=30,32,34 */
+                  drift = data.drift[locus];   /* clock=32 */
                   break;
                }
 
@@ -4447,6 +4469,7 @@ int MCMC(FILE* fout)
    if (mcmc.print > 0)
       fmcmc = zopen(com.mcmcf, "w");
    collectx(fmcmc, x);
+
    if (!com.fix_kappa && !com.fix_alpha && data.ngene == 2) { nxpr[0] = 6; nxpr[1] = 4; }
 
    puts("\npriors: ");
