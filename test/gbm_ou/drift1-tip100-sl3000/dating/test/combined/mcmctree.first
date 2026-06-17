@@ -1,0 +1,34 @@
+656007
+/mnt/hd1/home/sishuo/practice/test/sim_tree/drift1-tip100-sl3000/dating/test/combined/disabled_bin/codeml
+MCMCTREE in paml version 4.10.7, June 2023
+
+Reading options from mcmctree.ctl..
+finetune is deprecated now.
+
+Reading main tree.
+(((((t67, t26), ((t56, t76), t98)), (t88, t86)), ((((t53, (t2, t62)), (((t47, t75), (t38, t80)), (t51, t96))), (((t78, (t36, t99)), (t70, t11)), (((t85, (t73, (t50, t9))), (t34, t65)), t92))), (((((((t61, t17), (t59, t74)), (t5, t91)), (t63, t14)), ((t39, (t57, t18)), ((((t28, t48), (((t84, t66), (t7, t33)), (t22, t90))), (t10, t68)), ((t89, t6), t42)))), ((t82, ((t30, (t52, t29)), t35)), ((t19, (t64, t97)), t94))), (t1, t23)))), (((t72, t81), ((((t37, t12), (t27, t95)), (t24, ((t8, t3), (t41, ((t49, t40), ((t43, t93), (t16, t54))))))), ((t79, (t83, t4)), ((t58, t15), t77)))), (((t32, (t44, t55)), (((((t100, t25), t13), t60), ((t69, t45), t71)), t20)), ((t21, t87), (t31, t46)))));
+   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+
+duplication dating:  0 node ages are mirrored
+
+Reading sequence data..  1 loci
+
+
+*** Locus 1 ***
+ns = 100  	ls = 1
+Reading sequences, sequential format..
+Reading seq # 1: t67       Reading seq # 2: t26       Reading seq # 3: t56       Reading seq # 4: t76       Reading seq # 5: t98       Reading seq # 6: t88       Reading seq # 7: t86       Reading seq # 8: t53       Reading seq # 9: t2       Reading seq #10: t62       Reading seq #11: t47       Reading seq #12: t75       Reading seq #13: t38       Reading seq #14: t80       Reading seq #15: t51       Reading seq #16: t96       Reading seq #17: t78       Reading seq #18: t36       Reading seq #19: t99       Reading seq #20: t70       Reading seq #21: t11       Reading seq #22: t85       Reading seq #23: t73       Reading seq #24: t50       Reading seq #25: t9       Reading seq #26: t34       Reading seq #27: t65       Reading seq #28: t92       Reading seq #29: t61       Reading seq #30: t17       Reading seq #31: t59       Reading seq #32: t74       Reading seq #33: t5       Reading seq #34: t91       Reading seq #35: t63       Reading seq #36: t14       Reading seq #37: t39       Reading seq #38: t57       Reading seq #39: t18       Reading seq #40: t28       Reading seq #41: t48       Reading seq #42: t84       Reading seq #43: t66       Reading seq #44: t7       Reading seq #45: t33       Reading seq #46: t22       Reading seq #47: t90       Reading seq #48: t10       Reading seq #49: t68       Reading seq #50: t89       Reading seq #51: t6       Reading seq #52: t42       Reading seq #53: t82       Reading seq #54: t30       Reading seq #55: t52       Reading seq #56: t29       Reading seq #57: t35       Reading seq #58: t19       Reading seq #59: t64       Reading seq #60: t97       Reading seq #61: t94       Reading seq #62: t1       Reading seq #63: t23       Reading seq #64: t72       Reading seq #65: t81       Reading seq #66: t37       Reading seq #67: t12       Reading seq #68: t27       Reading seq #69: t95       Reading seq #70: t24       Reading seq #71: t8       Reading seq #72: t3       Reading seq #73: t41       Reading seq #74: t49       Reading seq #75: t40       Reading seq #76: t43       Reading seq #77: t93       Reading seq #78: t16       Reading seq #79: t54       Reading seq #80: t79       Reading seq #81: t83       Reading seq #82: t4       Reading seq #83: t58       Reading seq #84: t15       Reading seq #85: t77       Reading seq #86: t32       Reading seq #87: t44       Reading seq #88: t55       Reading seq #89: t100       Reading seq #90: t25       Reading seq #91: t13       Reading seq #92: t60       Reading seq #93: t69       Reading seq #94: t45       Reading seq #95: t71       Reading seq #96: t20       Reading seq #97: t21       Reading seq #98: t87       Reading seq #99: t31       Reading seq #100: t46       
+Sequences read..
+Counting site patterns..  0:00
+Compressing,      1 patterns at      1 /      1 sites (100.0%),  0:00
+Collecting fpatt[] & pose[],      1 patterns at      1 /      1 sites (100.0%),  0:00
+Counting frequencies..
+  1 patterns, clean
+
+
+
+*** Locus 1 ***
+running codeml tmp0001.ctl
+file rst2 not found!

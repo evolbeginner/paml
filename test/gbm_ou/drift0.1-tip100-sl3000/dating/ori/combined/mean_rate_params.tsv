@@ -1,0 +1,14 @@
+model	param	mean
+clock3	drift	0
+clock3	mu	0.0216
+clock3	sigma2	0.1183
+clock31	drift	0.0622
+clock31	mu	0.0209
+clock31	sigma2	0.1243
+clock32	drift	0.2762
+clock32	mu	0.0189
+clock32	sigma2	0.1162
+clock4	mu	0.0179
+clock4	rgeneOpt	0.0367
+clock4	sigma2	0.154
+clock4	theta	0.6109

@@ -1,0 +1,2 @@
+ Rscript /mnt/hd1/home/sishuo/lab-tools/dating/hessian/sim_tree.R -n 100 -m -3.7 --sd 0.2 --s2 0.1 --drift 0.1 -b 1 -d 1 --age 1 --rho 0.0001 -o drift0.1-tip100/sim/tree --clock gbm  
+
