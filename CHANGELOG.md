@@ -1,3 +1,6 @@
+### v4.10.9.6 - 2026-09-10
+- **Improve**: use theta_norm to replace rgeneOpt_gamma in the ctl file.
+
 ### v4.10.9.5 - 2026-09-01
 - **Improved**: under clock = 4, `mcmctree.c` OU process changed to GOU with sigma2, reversion (alpha by some people), theta = log(ropt) + sigma2 / (2 * alpha). In v4.10.9.4, theta -> reversion, log(rgeneOpt) -> theta - sigma2 / (2 * alpha), s2 -> s2
 

@@ -179,7 +179,7 @@ struct DATA { /* locus-specific data and tree information */
    int    rgeneprior;         /* 0: gamma-Dirichlet; 1: conditional iid */
    double rgene[NGENE + 1], sigma2[NGENE + 1], rgenepara[3], sigma2para[3];
    double drift[NGENE + 1], driftpara[3]; //SW GBM
-   double rgeneOpt[NGENE + 1], rgeneOptpara[3]; //SW OU rgeneOpt
+   double theta[NGENE + 1], thetapara[3]; //SW OU theta
    double reversion[NGENE + 1], reversionpara[3]; //SW OU reversion
    double *blMLE[NGENE], *Gradient[NGENE], *Hessian[NGENE];
    int    transform;
@@ -407,7 +407,7 @@ int GetMem(void)
    /* setting up space and offset for MCMC steplengths (steplength) */
    int g1 = g + (data.rgeneprior == 1);
    mcmc.nsteplength = (s - 1);                   /* t (node ages)  */
-   mcmc.nsteplength += g1 + g1*(com.clock > 1) + g1*(com.clock > 1) + g1*(com.clock > 1);    /* mu[] & sigma2[] & drift[] & rgeneOpt[] */
+   mcmc.nsteplength += g1 + g1*(com.clock > 1) + g1*(com.clock > 1) + g1*(com.clock > 1);    /* mu[] & sigma2[] & drift[] & theta[] */
    if (com.clock > 1)      mcmc.nsteplength += g*(s * 2 - 2);   /* branch rates */
    if (mcmc.usedata == 1)  mcmc.nsteplength += g*(!com.fix_kappa + !com.fix_alpha);   /* subst paras */
    mcmc.nsteplength += 1 + (data.pfossilerror[0] > 0);    /* mixing & fossilerror */
@@ -1160,7 +1160,7 @@ int GetOptions(char *ctlf)
         "BDparas", "kappa_gamma", "alpha_gamma", "rgene_gamma", "sigma2_gamma", 
         "print", "burnin", "sampfreq", "nsample", "finetune",
         "drift_norm", //drifted GBM
-        "rgeneOpt_gamma", // OU rgeneOpt
+        "theta_norm", // OU theta
         "reversion_gamma", // OU reversion
    };
    double t = 1, *eps = mcmc.steplength;
@@ -1284,8 +1284,8 @@ int GetOptions(char *ctlf)
                   if (data.driftpara[2] <= 0) data.driftpara[2] = 1;
                   break;
                case (33): //OU, clocl=4|40
-                  sscanf(pline + 1, "%lf%lf%lf", data.rgeneOptpara, data.rgeneOptpara + 1, data.rgeneOptpara + 2);
-                  if (data.rgeneOptpara[2] <= 0) data.rgeneOptpara[2] = 1;
+                  sscanf(pline + 1, "%lf%lf%lf", data.thetapara, data.thetapara + 1, data.thetapara + 2);
+                  if (data.thetapara[2] <= 0) data.thetapara[2] = 1;
                   break;
                case (34): //OU, clocl=4|40
                   sscanf(pline + 1, "%lf%lf%lf", data.reversionpara, data.reversionpara + 1, data.reversionpara + 2);
@@ -2016,14 +2016,15 @@ int GetInitials(void)
    np = stree.nspecies - 1 + g1;
    for (i = 0; i < g1; i++){
       data.rgene[i] = smallr + rndgamma(a_r) / b_r;   /* mu_i & mu_0 */
-      data.rgeneOpt[i] = smallr + rndgamma(data.rgeneOptpara[0]) / data.rgeneOptpara[1];   /* mu_i & mu_0 */
+      // data.theta[i] = smallr + rndgamma(data.thetapara[0]) / data.thetapara[1];   /* mu_i & mu_0 */
+      data.theta[i] = exp(rand_normal(data.thetapara[0], data.thetapara[1]));
    }
 
    if (com.clock > 1) {               /* sigma2, rates for nodes or branches */
       np += g1;
       np += g1;//SW GBM
       if (com.clock == 4 || com.clock == 40){
-         np += g1; //rgeneOpt
+         np += g1; //theta
       }
       if (mcmc.print >= 2) np += g*(stree.nnode - 1);
 
@@ -2121,11 +2122,11 @@ int collectx(FILE* fout, double x[])
       }else{ //SW OU
          for (i = 0; i < g1; i++) {
             if (firsttime && fout) {
-               if (i == g)      fprintf(fout, "\trgeneOpt_bar");
-               else if (g > 1)  fprintf(fout, "\trgeneOpt_%d", i + 1);
-               else             fprintf(fout, "\trgeneOpt");
+               if (i == g)      fprintf(fout, "\ttheta_bar");
+               else if (g > 1)  fprintf(fout, "\ttheta_%d", i + 1);
+               else             fprintf(fout, "\ttheta");
             }
-            x[np++] = data.rgeneOpt[i];
+            x[np++] = log(data.theta[i]);
             if (firsttime && fout) {
                if (i == g)      fprintf(fout, "\treversion_bar");
                else if (g > 1)  fprintf(fout, "\treversion_%d", i + 1);
@@ -3351,9 +3352,9 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
    */
    int g = data.ngene, g1 = g + (data.rgeneprior == 1);
    //int locus, ip, np = 1 + (com.clock > 1), j;
-   int locus, ip, np = 3 + (com.clock > 1), j;//SW, increase np from "1+" to "2+" for drift (GBM) and rgeneOpt (OU)
+   int locus, ip, np = 3 + (com.clock > 1), j;//SW, increase np from "1+" to "2+" for drift (GBM) and theta (OU)
    np += (com.clock == 4 || com.clock == 40);
-   char *parastr[5] = { "mu", "sigma2", "drift", "rgeneOpt", "reversion"};
+   char *parastr[5] = { "mu", "sigma2", "drift", "theta", "reversion"};
    double lnacceptance, lnpDinew = -1e99, lnpRnew = 0, lnLd = 0;
    double yb[2] = { -99,99 }, y, ynew, pold, pnew, sumold, sumnew, e;
    double *para, *gD, a, b, bold, bnew;   /* gamma-Dirichlet */
@@ -3366,8 +3367,8 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
       if (ip == 0) { para = data.rgene;  gD = data.rgenepara; } /* rgene (mu) */
       else if (ip == 1)        { para = data.sigma2; gD = data.sigma2para; } /* sigma2 */
       else if (ip == 2)        { para = data.drift; gD = data.driftpara; } /* drift, SW */
-      else if (ip == 3)        { para = data.rgeneOpt; gD = data.rgeneOptpara; } /* rgeneOpt, SW */
-      else if (ip == 4)        { para = data.reversion; gD = data.reversionpara;} /* rgeneOpt, SW */
+      else if (ip == 3)        { para = data.theta; gD = data.thetapara; } /* theta, SW */
+      else if (ip == 4)        { para = data.reversion; gD = data.reversionpara;} /* reversion, SW */
 
 
    //SW
@@ -3392,7 +3393,7 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
          }
 
          if (data.rgeneprior == 0) {
-            if (ip == 2) {  /* drift prior: joint LogNormal-Dirichlet form from derivation */
+            if (ip == 2 || ip == 3) {  /* drift prior: joint LogNormal-Dirichlet form from derivation */
                double m = gD[0], sigma = sqrt(gD[1]), alpha = gD[2];
                double ds = ynew - y;  /* = log(pnew) - log(pold) */
                double logg = log((double)g);
@@ -3628,7 +3629,7 @@ double lnpriorRates(void)
                reversion  = data.reversion[locus];
                sigma2 = data.sigma2[locus];
                //mu     = log(data.rgene[locus]);
-               mu     = log(data.rgeneOpt[locus]);
+               mu = log(data.theta[locus]) - sigma2/(2.0*reversion); //SSW
 
                y0     = log(rA);
                log_r1 = log(r1);
@@ -3754,7 +3755,8 @@ double lnpriorRatioRates(int locus, int inodeChanged, double rold)
                reversion  = data.reversion[locus];
                sigma2 = data.sigma2[locus];
                //mu     = log(data.rgene[locus]);
-               mu     = log(data.rgeneOpt[locus]);
+               //mu     = log(data.theta[locus]);
+               mu = log(data.theta[locus]) - sigma2/(2.0*reversion); //SSW
 
                if (reversion < 0)
                   zerror("OU reversion must be >= 0 in lnpriorRatioRates().");
