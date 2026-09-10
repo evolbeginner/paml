@@ -1,3 +1,7 @@
+### v4.10.9.5 - 2026-09-01
+- **Improved**: under clock = 4, `mcmctree.c` OU process changed to GOU with sigma2, reversion (alpha by some people), theta = log(ropt) + sigma2 / (2 * alpha). In v4.10.9.4, theta -> reversion, log(rgeneOpt) -> theta - sigma2 / (2 * alpha), s2 -> s2
+
+
 ### v4.10.9.4 - 2026-06-15
 - **New**: OU implemented (clock = 4, rgeneOpt\_gamma, theta\_gamma)
 - **Improved**: `mcmc.txt` output improved

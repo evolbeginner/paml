@@ -2646,7 +2646,7 @@ double lnptCalibrationDensity(double t, int fossil, double p[7])
 {
    /* This calculates the log of calibration density
    */
-   double lnpt=0, a = p[0], b = p[1], ThetaL, ThetaR, tailL = 99, tailR = 99, s, z, t0, P, c, A;
+   double lnpt=0, a = p[0], b = p[1], thetaL, thetaR, tailL = 99, tailR = 99, s, z, t0, P, c, A;
 
    switch (fossil) {
    case (LOWER_F):  /* truncated Cauchy C(a(1+p), s^2). tL = a. */
@@ -2662,8 +2662,8 @@ double lnptCalibrationDensity(double t, int fossil, double p[7])
       }
       else {
          z = P / c;
-         ThetaL = (1 / tailL - 1) / (Pi*A*c*(1 + z*z));
-         lnpt = log(tailL*ThetaL / a) + (ThetaL - 1)*log(t / a);
+         thetaL = (1 / tailL - 1) / (Pi*A*c*(1 + z*z));
+         lnpt = log(tailL*thetaL / a) + (thetaL - 1)*log(t / a);
       }
       break;
    case (UPPER_F):
@@ -2672,8 +2672,8 @@ double lnptCalibrationDensity(double t, int fossil, double p[7])
       if (t < b)
          lnpt = log((1 - tailR) / b);
       else {
-         ThetaR = (1 - tailR) / (tailR*b);
-         lnpt = log(tailR*ThetaR) - ThetaR*(t - b);
+         thetaR = (1 - tailR) / (tailR*b);
+         lnpt = log(tailR*thetaR) - thetaR*(t - b);
       }
       break;
    case (BOUND_F):
@@ -2682,12 +2682,12 @@ double lnptCalibrationDensity(double t, int fossil, double p[7])
       if (t > a && t < b)
          lnpt = log((1 - tailL - tailR) / (b - a));
       else if (t < a) {
-         ThetaL = (1 - tailL - tailR)*a / (tailL*(b - a));
-         lnpt = log(tailL*ThetaL / a) + (ThetaL - 1)*log(t / a);
+         thetaL = (1 - tailL - tailR)*a / (tailL*(b - a));
+         lnpt = log(tailL*thetaL / a) + (thetaL - 1)*log(t / a);
       }
       else {
-         ThetaR = (1 - tailL - tailR) / (tailR*(b - a));
-         lnpt = log(tailR*ThetaR) - ThetaR*(t - b);
+         thetaR = (1 - tailL - tailR) / (tailR*(b - a));
+         lnpt = log(tailR*thetaR) - thetaR*(t - b);
       }
       break;
    case (GAMMA_F):
@@ -2790,7 +2790,7 @@ double getScaleFossilCombination(void)
    signed char ConstraintTab[MaxNFossils][MaxNFossils] = { {0} };  /* 1: row>col; 0: irrelevant */
    double C, sC, accept, mt[MaxNFossils] = { 0 }, t[MaxNFossils], *pfossil[MaxNFossils], pfossilroot[4];
    double importance, CLower[MaxNFossils][3];
-   double sNormal = 1, r, ThetaL, ThetaR, a, b, c, p, s, A, zc, zn, tailL, tailR;
+   double sNormal = 1, r, thetaL, thetaR, a, b, c, p, s, A, zc, zn, tailL, tailR;
    int debug = 1;
 
    /* Set up constraint table */
@@ -2839,8 +2839,8 @@ double getScaleFossilCombination(void)
          tailL = pfossil[i][3];
          s = a*c*sNormal;
          A = 0.5 + 1 / Pi*atan(p / c);
-         CLower[i][0] = (1 / tailL - 1) / (Pi*A*c*(1 + (p / c)*(p / c)));  /* reversionCauchy */
-         CLower[i][1] = (1 / tailL - 1) * a / (s*sqrt(Pi / 2));            /* reversionNormal  */
+         CLower[i][0] = (1 / tailL - 1) / (Pi*A*c*(1 + (p / c)*(p / c)));  /* thetaCauchy */
+         CLower[i][1] = (1 / tailL - 1) * a / (s*sqrt(Pi / 2));            /* thetaNormal  */
          CLower[i][2] = s / (A*c*a*sqrt(2 * Pi));                      /* s/Act*sqrt(2Pi) */
       }
    }
@@ -2856,10 +2856,10 @@ double getScaleFossilCombination(void)
          switch (fossil) {
          case(LOWER_F):  /* simulating from folded normal, the importance density */
             tailL = pfossil[i][3];
-            if (r < tailL) {   /* left tail, CLower[i][1] has ThetaNormal */
-               ThetaL = CLower[i][1];
-               t[i] = a * pow(rndu(), 1 / ThetaL);
-               importance *= CLower[i][0] / ThetaL * pow(t[i] / a, CLower[i][0] - ThetaL);
+            if (r < tailL) {   /* left tail, CLower[i][1] has thetaNormal */
+               thetaL = CLower[i][1];
+               t[i] = a * pow(rndu(), 1 / thetaL);
+               importance *= CLower[i][0] / thetaL * pow(t[i] / a, CLower[i][0] - thetaL);
             }
             else {
                c = pfossil[i][2];
@@ -2876,8 +2876,8 @@ double getScaleFossilCombination(void)
                t[i] = b*rndu();
             }
             else {  /* right tail */
-               ThetaR = (1 - tailR) / (tailR*b);
-               t[i] = b - log(rndu()) / ThetaR;
+               thetaR = (1 - tailR) / (tailR*b);
+               t[i] = b - log(rndu()) / thetaR;
             }
             break;
          case (BOUND_F):
@@ -2886,12 +2886,12 @@ double getScaleFossilCombination(void)
             if (r > tailL + tailR)  /* flat part */
                t[i] = a + (b - a) * rndu();
             else if (r < tailL) {  /* left tail */
-               ThetaL = (1 - tailL - tailR)*a / (tailL*(b - a));
-               t[i] = a * pow(rndu(), 1 / ThetaL);
+               thetaL = (1 - tailL - tailR)*a / (tailL*(b - a));
+               t[i] = a * pow(rndu(), 1 / thetaL);
             }
             else {                 /* right tail */
-               ThetaR = (1 - tailL - tailR) / (tailR*(b - a));
-               t[i] = b - log(rndu()) / ThetaR;
+               thetaR = (1 - tailL - tailR) / (tailR*(b - a));
+               t[i] = b - log(rndu()) / thetaR;
             }
             break;
          case(GAMMA_F):
@@ -3366,8 +3366,8 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
       if (ip == 0) { para = data.rgene;  gD = data.rgenepara; } /* rgene (mu) */
       else if (ip == 1)        { para = data.sigma2; gD = data.sigma2para; } /* sigma2 */
       else if (ip == 2)        { para = data.drift; gD = data.driftpara; } /* drift, SW */
-      else if (ip == 3)        { para = data.rgeneOpt; gD = data.rgeneOptpara; } /* rgeneOpt, SW */
-      else if (ip == 4)        { para = data.reversion; gD = data.reversionpara;} /* rgeneOpt, SW */
+      else if (ip == 3)        { para = data.rgeneOpt; gD = data.rgeneOpt; } /* rgeneOpt, SW */
+      else if (ip == 4)        { para = data.reversion; gD = data.reversionpara;} /* reversion, SW */
 
 
    //SW
@@ -3700,7 +3700,7 @@ double lnpriorRatioRates(int locus, int inodeChanged, double rold)
 
       clock=4|40:
          OU model on log-rates, using
-            reversion = data.drift[locus]
+            theta = data.drift[locus]
             mu    = log(data.rgene[locus])
    */
    double rnew = stree.nodes[inodeChanged].rates[locus], lnpRd = 0, a, b, z, znew;
