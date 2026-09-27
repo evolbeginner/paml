@@ -1,3 +1,6 @@
+### v4.10.9.7 - 2026-09-25
+- **Improve**: in line 4375 of `mcmctree.c` rategram is not corrected in `out.txt`.
+
 ### v4.10.9.6 - 2026-09-10
 - **Improve**: use theta_norm to replace rgeneOpt_gamma in the ctl file.
 

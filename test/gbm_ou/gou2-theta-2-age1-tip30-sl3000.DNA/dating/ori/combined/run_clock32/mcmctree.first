@@ -1,0 +1,34 @@
+2162873
+/mnt/hd1/home/sishuo/project/new_clock_models/GBM_OU/paml_edit/newest/test/gbm_ou/gou2-theta-2-age1-tip30-sl3000.DNA/dating/ori/combined/disabled_bin/codeml
+MCMCTREE in paml version 4.10.7, June 2023
+
+Reading options from mcmctree.ctl..
+finetune is deprecated now.
+
+Reading main tree.
+(((((t8, (t1, t20)), ((t30, t21), t5)), ((t26, (t18, (t10, t28))), (t27, t17))), (((t12, t13), ((t6, (t2, t22)), (t3, t14))), ((t7, t23), (t29, (t9, (t15, t16)))))), (t24, ((t25, t4), (t11, t19))));
+   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+
+duplication dating:  0 node ages are mirrored
+
+Reading sequence data..  1 loci
+
+
+*** Locus 1 ***
+ns = 30  	ls = 3000
+Reading sequences, sequential format..
+Reading seq # 1: t8       Reading seq # 2: t1       Reading seq # 3: t20       Reading seq # 4: t30       Reading seq # 5: t21       Reading seq # 6: t5       Reading seq # 7: t26       Reading seq # 8: t18       Reading seq # 9: t10       Reading seq #10: t28       Reading seq #11: t27       Reading seq #12: t17       Reading seq #13: t12       Reading seq #14: t13       Reading seq #15: t6       Reading seq #16: t2       Reading seq #17: t22       Reading seq #18: t3       Reading seq #19: t14       Reading seq #20: t7       Reading seq #21: t23       Reading seq #22: t29       Reading seq #23: t9       Reading seq #24: t15       Reading seq #25: t16       Reading seq #26: t24       Reading seq #27: t25       Reading seq #28: t4       Reading seq #29: t11       Reading seq #30: t19       
+Sequences read..
+Counting site patterns..  0:00
+Compressing,   1546 patterns at   3000 /   3000 sites (100.0%),  0:00
+Collecting fpatt[] & pose[],   1546 patterns at   3000 /   3000 sites (100.0%),  0:00
+Counting frequencies..
+1546 patterns, clean
+
+
+
+*** Locus 1 ***
+running codeml tmp0001.ctl
+file rst2 not found!

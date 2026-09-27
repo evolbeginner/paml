@@ -4373,6 +4373,8 @@ int DescriptiveStatisticsSimpleMCMCTREE(FILE *fout, char infile[])
    /* rategrams */
    if (com.clock >= 2 && mcmc.print >= 2) {
       jj = SkipC1 + stree.nspecies - 1 + data.ngene * 2;
+      if (com.clock == 3 || com.clock == 31 || com.clock == 32 || com.clock == 4)
+         jj += (com.clock == 4 ? 2 : 1) * data.ngene;
       for (i = 0; i < data.ngene; i++) {
          fprintf(fout, "\nrategram locus %d:\n", i + 1);
          for (j = 0; j < stree.nnode; j++) {
