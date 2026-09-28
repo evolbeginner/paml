@@ -1,3 +1,7 @@
+### v4.10.9.8 - 2026-09-28
+- **Improve**: OU cov matrix not posi definitive solved.
+- **Improve**: IR model output rate wrong corrected.
+
 ### v4.10.9.7 - 2026-09-25
 - **Improve**: in line 4375 of `mcmctree.c` rategram is not corrected in `out.txt`.
 

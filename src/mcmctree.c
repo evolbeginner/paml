@@ -2110,7 +2110,7 @@ int collectx(FILE* fout, double x[])
          x[np++] = data.sigma2[i];
       }
       //SW GBM
-      if (com.clock == 3 || com.clock == 30 || com.clock == 31 || com.clock == 32){
+      if (com.clock == 2 || com.clock == 3 || com.clock == 30 || com.clock == 31 || com.clock == 32){
          for (i = 0; i < g1; i++) {
             if (firsttime && fout) {
                if (i == g)      fprintf(fout, "\tdrift_bar");
@@ -3629,7 +3629,10 @@ double lnpriorRates(void)
                reversion  = data.reversion[locus];
                sigma2 = data.sigma2[locus];
                //mu     = log(data.rgene[locus]);
-               mu = log(data.theta[locus]) - sigma2/(2.0*reversion); //SSW
+               /* Avoid dividing by zero before the Brownian limit test. */
+               mu = (reversion > 1e-12
+                     ? log(data.theta[locus]) - sigma2/(2.0*reversion)
+                     : log(data.theta[locus])); //SSW
 
                y0     = log(rA);
                log_r1 = log(r1);
@@ -3657,16 +3660,28 @@ double lnpriorRates(void)
                   z1 = log_r1 - m1;
                   z2 = log_r2 - m2;
 
-                  v11 = sigma2 / (2.0 * reversion) *
-                        (1.0 - exp(-2.0 * reversion * (tA + t1)));
-                  v22 = sigma2 / (2.0 * reversion) *
-                        (1.0 - exp(-2.0 * reversion * (tA + t2)));
-                  v12 = sigma2 / (2.0 * reversion) *
-                        (exp(-reversion * (t1 + t2)) -
-                         exp(-reversion * (2.0 * tA + t1 + t2)));
+                  /* Stable OU covariance calculation.  The old expressions
+                     subtract nearly equal exponentials and can make a
+                     positive determinant round to zero or negative. */
+                  double q = sigma2 / (2.0 * reversion);
+                  double A = exp(-2.0 * reversion * tA);
+                  double u = -expm1(-2.0 * reversion * tA);
+                  double b = -expm1(-2.0 * reversion * t1);
+                  double c = -expm1(-2.0 * reversion * t2);
+                  double e12 = exp(-reversion * (t1 + t2));
+                  double oneBC = -expm1(-2.0 * reversion * (t1 + t2));
+
+                  v11 = q * (u + A * b);
+                  v22 = q * (u + A * c);
+                  v12 = q * e12 * u;
+                  /* Algebraically equivalent determinant with only positive
+                     terms, avoiding v11*v22-v12*v12 cancellation. */
+                  detS = q * q * (u * u * oneBC + A * u * (b + c)
+                                  + A * A * b * c);
                }
 
-               detS = v11 * v22 - v12 * v12;
+               if (fabs(reversion) < 1e-12)
+                  detS = v11 * v22 - v12 * v12;
                if (detS <= 0)
                   zerror("OU cov matrix not posi definite in lnpriorRates().");
                Sinv00 =  v22 / detS;
@@ -3756,7 +3771,10 @@ double lnpriorRatioRates(int locus, int inodeChanged, double rold)
                sigma2 = data.sigma2[locus];
                //mu     = log(data.rgene[locus]);
                //mu     = log(data.theta[locus]);
-               mu = log(data.theta[locus]) - sigma2/(2.0*reversion); //SSW
+               /* Avoid dividing by zero before the Brownian limit test. */
+               mu = (reversion > 1e-12
+                     ? log(data.theta[locus]) - sigma2/(2.0*reversion)
+                     : log(data.theta[locus])); //SSW
 
                if (reversion < 0)
                   zerror("OU reversion must be >= 0 in lnpriorRatioRates().");
@@ -3784,16 +3802,25 @@ double lnpriorRatioRates(int locus, int inodeChanged, double rold)
                   z1 = log_r1 - m1;
                   z2 = log_r2 - m2;
 
-                  v11 = sigma2 / (2.0 * reversion) *
-                        (1.0 - exp(-2.0 * reversion * (tA + t1)));
-                  v22 = sigma2 / (2.0 * reversion) *
-                        (1.0 - exp(-2.0 * reversion * (tA + t2)));
-                  v12 = sigma2 / (2.0 * reversion) *
-                        (exp(-reversion * (t1 + t2)) -
-                         exp(-reversion * (2.0 * tA + t1 + t2)));
+                  /* Stable OU covariance calculation; this avoids
+                     cancellation in both 1-exp(-x) and the determinant. */
+                  double q = sigma2 / (2.0 * reversion);
+                  double A = exp(-2.0 * reversion * tA);
+                  double u = -expm1(-2.0 * reversion * tA);
+                  double b = -expm1(-2.0 * reversion * t1);
+                  double c = -expm1(-2.0 * reversion * t2);
+                  double e12 = exp(-reversion * (t1 + t2));
+                  double oneBC = -expm1(-2.0 * reversion * (t1 + t2));
+
+                  v11 = q * (u + A * b);
+                  v22 = q * (u + A * c);
+                  v12 = q * e12 * u;
+                  detS = q * q * (u * u * oneBC + A * u * (b + c)
+                                  + A * A * b * c);
                }
 
-               detS = v11 * v22 - v12 * v12;
+               if (fabs(reversion) < 1e-12)
+                  detS = v11 * v22 - v12 * v12;
                if (detS <= 0)
                   zerror("OU cov matrix not posi definite in lnpriorRates().");
                Sinv00 =  v22 / detS;
@@ -4373,7 +4400,7 @@ int DescriptiveStatisticsSimpleMCMCTREE(FILE *fout, char infile[])
    /* rategrams */
    if (com.clock >= 2 && mcmc.print >= 2) {
       jj = SkipC1 + stree.nspecies - 1 + data.ngene * 2;
-      if (com.clock == 3 || com.clock == 31 || com.clock == 32 || com.clock == 4)
+      if (com.clock == 2 || com.clock == 3 || com.clock == 31 || com.clock == 32 || com.clock == 4)
          jj += (com.clock == 4 ? 2 : 1) * data.ngene;
       for (i = 0; i < data.ngene; i++) {
          fprintf(fout, "\nrategram locus %d:\n", i + 1);
