@@ -1,3 +1,6 @@
+### v4.10.9.9 - 2026-10-15
+- **Fix**: OU uses 4 params but in prev versions it updates also drift which is not used at all. This might cause a lower rate. Fixed.
+
 ### v4.10.9.8 - 2026-09-28
 - **Improve**: OU cov matrix not posi definitive solved.
 - **Improve**: IR model output rate wrong corrected.

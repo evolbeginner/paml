@@ -407,7 +407,7 @@ int GetMem(void)
    /* setting up space and offset for MCMC steplengths (steplength) */
    int g1 = g + (data.rgeneprior == 1);
    mcmc.nsteplength = (s - 1);                   /* t (node ages)  */
-   mcmc.nsteplength += g1 + g1*(com.clock > 1) + g1*(com.clock > 1) + g1*(com.clock > 1);    /* mu[] & sigma2[] & drift[] & theta[] */
+   mcmc.nsteplength += g1*(1 + (com.clock > 1)*(2 + (com.clock == 4 || com.clock == 40))); /* mu, sigma2, drift or theta, reversion */
    if (com.clock > 1)      mcmc.nsteplength += g*(s * 2 - 2);   /* branch rates */
    if (mcmc.usedata == 1)  mcmc.nsteplength += g*(!com.fix_kappa + !com.fix_alpha);   /* subst paras */
    mcmc.nsteplength += 1 + (data.pfossilerror[0] > 0);    /* mixing & fossilerror */
@@ -419,7 +419,7 @@ int GetMem(void)
    mcmc.accept = (char*)(mcmc.Pjump + mcmc.nsteplength);
    mcmc.steplengthOffset[0] = 0;                 /* t */
    mcmc.steplengthOffset[1] = s - 1;             /* mu[] & sigma2[] & drift[] */
-   mcmc.steplengthOffset[2] = mcmc.steplengthOffset[1] + g1 + g1*(com.clock > 1) + g1*(com.clock > 1) + g1*(com.clock > 1);              /* branch rates */
+   mcmc.steplengthOffset[2] = mcmc.steplengthOffset[1] + g1*(1 + (com.clock > 1)*(2 + (com.clock == 4 || com.clock == 40))); /* branch rates */
    mcmc.steplengthOffset[3] = mcmc.steplengthOffset[2] + (com.clock > 1)*g*(s * 2 - 2);        /* subst paras */
    mcmc.steplengthOffset[4] = mcmc.steplengthOffset[3] + (mcmc.usedata == 1)*g*(!com.fix_kappa + !com.fix_alpha);  /* mixing */
    mcmc.steplengthOffset[5] = mcmc.steplengthOffset[4] + 1;                                    /* fossilerror */
@@ -3351,10 +3351,9 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
       it changes the rate prior but not the likelihood.
    */
    int g = data.ngene, g1 = g + (data.rgeneprior == 1);
-   //int locus, ip, np = 1 + (com.clock > 1), j;
-   int locus, ip, np = 3 + (com.clock > 1), j;//SW, increase np from "1+" to "2+" for drift (GBM) and theta (OU)
-   np += (com.clock == 4 || com.clock == 40);
-   char *parastr[5] = { "mu", "sigma2", "drift", "theta", "reversion"};
+   int locus, ip, ou = (com.clock == 4 || com.clock == 40), j;
+   int np = 1 + (com.clock > 1)*(2 + ou);
+   char *parastr[4] = { "mu", "sigma2", ou ? "theta" : "drift", "reversion"};
    double lnacceptance, lnpDinew = -1e99, lnpRnew = 0, lnLd = 0;
    double yb[2] = { -99,99 }, y, ynew, pold, pnew, sumold, sumnew, e;
    double *para, *gD, a, b, bold, bnew;   /* gamma-Dirichlet */
@@ -3366,9 +3365,9 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
    for (ip = 0; ip < np; ip++) {  /* mu (rgene) and sigma2 for each locus and for overall */
       if (ip == 0) { para = data.rgene;  gD = data.rgenepara; } /* rgene (mu) */
       else if (ip == 1)        { para = data.sigma2; gD = data.sigma2para; } /* sigma2 */
-      else if (ip == 2)        { para = data.drift; gD = data.driftpara; } /* drift, SW */
-      else if (ip == 3)        { para = data.theta; gD = data.thetapara; } /* theta, SW */
-      else if (ip == 4)        { para = data.reversion; gD = data.reversionpara;} /* reversion, SW */
+      else if (ip == 2 && ou)  { para = data.theta; gD = data.thetapara; }
+      else if (ip == 2)        { para = data.drift; gD = data.driftpara; }
+      else                    { para = data.reversion; gD = data.reversionpara; }
 
 
    //SW
@@ -3393,7 +3392,7 @@ int UpdateParaRates(double *lnL, double steplength[], char accept[], double spac
          }
 
          if (data.rgeneprior == 0) {
-            if (ip == 2 || ip == 3) {  /* drift prior: joint LogNormal-Dirichlet form from derivation */
+            if (ip == 2) {  /* drift or theta prior: joint LogNormal-Dirichlet form */
                double m = gD[0], sigma = sqrt(gD[1]), alpha = gD[2];
                double ds = ynew - y;  /* = log(pnew) - log(pold) */
                double logg = log((double)g);
